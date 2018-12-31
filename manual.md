@@ -443,6 +443,19 @@ Does PriDE create entities here? No, not really. The instances result from *clon
 
 In general it is strongly recommended to define a base class for all entity types where all those standard capabilities are encapsulated. Not only a clone() implementation but also s reasonable default (reflection-based) toString() method and maybe even a set of standard attributes as explained in chapter [Entity Derivation](#entity-derivation).
 
+### Streaming
+
+Another alternative form of result processing are the ResultIterator's stream methods. There are two different methods available.
+
+The method `stream(Class)` provides the results as a "real" stream with a clone of the original entity for every result. The resulting stream is suitable for any kind of Java stream operations but should be used with care when selecting a very large number of results combined with stream operations which have to keep all the results (e.g. sort and collect operations). This may cause serious memory problems.
+
+The method `streamUncloned(Class)` provides all results in the original entity just as it is the case in direct iterating and processing demonstrated above. This kind of stream is suitable for any amount of results but can only be used for a limited set of stream operations. Especially operations that rely on object identity will  usually not work. Operations for direct processing like forEach() or count() won't cause any problems. The direct processing example from the beginning of the query section would look like this when using streams:
+
+```
+Customer customer = new Customer();
+customer.queryAll().streamUncloned().forEach(c -> System.out.println(c));
+```
+
 Examples for find and query code can by found in the class QueryClient in the directory [examples/query](https://github.com/j-pride/pride.pm/tree/master/src/examples/java/query) of the PriDE delivery.
 
 ## Selection criteria
