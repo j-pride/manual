@@ -835,20 +835,19 @@ The resulting DerivedCustomer class behaves exactly like the Customer class from
 When you are working with separate adapters, you need a derivation for both, entity class and adapter class. The generator calls look like that:
 
 ```
-# Entity base class
+## Entity base class
 java util.EntityGeneratorWithExampleConfig
 CUSTOMER(id) inherit.AbstractEntity -b
 
-# Adapter base class
+## Adapter base class
 java util.EntityGeneratorWithExampleConfig
 CUSTOMER(id) inherit.AbstractAdapter inherit.AbstractEntity
 
-# Derived Customer entity class
-# Adapter base class
+## Derived Customer entity class
 java util.EntityGeneratorWithExampleConfig
 CUSTOMER inherit.DerivedCustomerEntity -b inherit.AbstractAdapter
 
-# Derived Customer adapter class
+## Derived Customer adapter class
 java util.EntityGeneratorWithExampleConfig
 CUSTOMER inherit.DerivedCustomerAdapter inherit.DerivedCustomerEntity inherit.AbstractAdapter
 ```
