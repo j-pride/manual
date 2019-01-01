@@ -865,3 +865,23 @@ CUSTOMER(name) inherit.AbstractNamedHybrid -h inherit.AbstractHybrid
 
 What PriDE does not support are queries based on abstract base entities which automatically consider the tables of the derived non-abstract entities. You can find features like that in JPA, but they require a highly complicated, obscure SQL query assembly - in combination with the table-per-class strategy resulting in SQL union expressions. This is something, which doesn't happen too often and should always remain in the developer's responsibility to stay on control of your SQL.
 
+# Joins
+
+PriDE provides different techniques to express joins, depending on the purpose resp. the type of outcome of the join:
+
+- An entity being a 1:1 mapping of a table because the join is only required for complicated selection conditions that take related tables into account.
+- An extended entity consisting of a 1:1 mapping of a table, extended by a few attributes from a related table
+- An entity composition, i.e. an entity for a 1:1 mapping of a table, extended by references to related entities that also represent 1:1 table mappings
+- A composition from table fragments and/or computations, making up a new type of entity with its own specific meaning.
+
+The different variants are explained with the CUSTOMER table being used in all other examples so far, and an additional table ADDRESS like this:
+
+```
+create table ADDRESS (
+    customer_id integer not null,
+    street varchar(30),
+    city varchar(30)
+);
+```
+
+ Each customer optionally has an address attached. You find a corresponding entity and a table creation class in the directory examples/joins.
