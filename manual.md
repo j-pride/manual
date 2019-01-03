@@ -2,7 +2,7 @@
 
 # About PriDE
 
-PriDE ist the Java world's smallest object-relational mapper for SQL databases. O/R mapping is the wide-spread approach to map records of a relation SQL database to objects of an object-oriented application. The application should operate on its persistent entities as object-oriented as possible, not regarding that some of them come from a database or must be saved in one. PriDE provides functionality to
+PriDE is the Java world's smallest object-relational mapper for SQL databases. O/R mapping is the wide-spread approach to map records of a relation SQL database to objects of an object-oriented application. The application should operate on its persistent entities as object-oriented as possible, not regarding that some of them come from a database or must be saved in one. PriDE provides functionality to
 
 - Describe the mapping of database tables to Java classes
 - Read and write data records without accessing the complicated JDBC interface, and - as far as possible - don't write any SQL at all
@@ -904,7 +904,7 @@ String.format(
 "    ( length(%4$s) < 2 and length(%5$s) < 2 ) or" +
 "    ( %4$s = %5$s )" +
 ")",
-COL_ID, lowest, highest, COL_NAME, COL_FIRSTNAME);
+COL_ID, lowest, highest, COL_NAME, COL_FIRST_NAME);
 ```
 
 ## Elaborated SQL with SQLExpressionBuilder
@@ -912,7 +912,7 @@ COL_ID, lowest, highest, COL_NAME, COL_FIRSTNAME);
 PriDE's expression builder extends String.format() in a way, the you can use identifiers rather than just % and position numbers as variables. The builder is address by the static function `build(String formatString, Object... args)` in class pm.pride.SQL. Identifiers in the format string that require replacement by any of the following arguments begin with an @ character and end with the first character that is neither a letter nor an underscore. Based on that, the SQL can be represented almost natively:
 
 ```
-String.format(
+SQL.build(
 "@id between %d and %d and (" +
 "    ( length(@name) + length(@first_name) < 7) or" +
 "    ( length(@name) < 2 and length(@first_name) < 2 ) or" +
@@ -926,27 +926,27 @@ As you can see, the identifier feature can be combined with Java's standard repl
 If you need lots of arguments, it is helpful to split the argument list in multiple lines like the format string. Each argument line contains only the arguments which are (first) assigned to the identifiers of the corresponding line from the format string. Applied to the example above it looks like that:
 
 ```
-String.format(
+SQL.build(
 "@id between %d and %d and (" +
 "    ( length(@name) + length(@first_name) < 7) or" +
 "    ( length(@name) < 2 and length(@first_name) < 2 ) or" +
 "    ( @name = @first_name )" +
 ")",
 COL_ID, lowest, highest,
-COL_NAME, COL_FIRSTNAME);
+COL_NAME, COL_FIRST_NAME);
 ```
 
 A small expression like above doesn't need those tricks, but e.g. a complex SQL merge statement may require 20 arguments and more. Alternatively you may also combine identifiers with position numbers as known from String.format(), so that you can check the identifier/argument matching by counting:
 
 ```
-String.format(
+SQL.build(
 "@1$id between %2$d and %3$d and (" +
 "    ( length(@4$name) + length(@5$first_name) < 7) or" +
 "    ( length(@name) < 2 and length(@first_name) < 2 ) or" +
 "    ( @name = @first_name )" +
 ")",
 COL_ID, lowest, highest,
-COL_NAME, COL_FIRSTNAME);
+COL_NAME, COL_FIRST_NAME);
 ```
 
 Only one occurrence of an identifier needs to be accompanied by a position specification, while all the others automatically inherit the argument assignment. You may add the position number to all occurrences but then they have to be identical. Re-positioning is not allowed.
