@@ -38,8 +38,6 @@ At January 2019, the PriDE 3 manual is work in progress. Beside the core chapter
 
 #### Mass Operations
 
-#### SQL Expression Builder
-
 #### Calling Stored Procedures
 
 #### PriDE Design Principles
@@ -542,7 +540,7 @@ Especially when you select data *in order*, the ResultIterator provides the addi
 
 And finally finally the methods bindvars...() in the WhereCondition class give you fine-grained control over which parts of the expression should use bind variables and which ones should be plain SQL. Bind variables or not becomes a relevant issue for databases on heavy duty and therefore are also discussed in the mass operation chapter. 
 
-### Arbitrary criteria
+### Arbitrary Criteria
 
 When the going gets tough there is a method `query(String where)` available in all adapters and hybrid entities. The function gets passed a fully assembled where-clause without the leading where keyword. It takes any limitations away but also a lot of convenience and safety. Assembly of complicated SQL expressions may not only become an issue in where-clauses but in any multi-record operation likes joins, merge statements, or mass updates. PriDE can help you assembling these expressions with the class pm.pride.SQLExpressionBuilder resp. the function pride.pm.SQL.build(). It preserves the native readability of complicated SQL on the one hand and allows you to work with table name and column name constants on the other hand to preserve code dependency tracking. In the preceding chapters you learned already that the PriDE principles heavily emphasize this central aspect for robust application design. The expression builder is addressed in a [separate chapter](#sql-expression-builder). However, to give you a first impression, here is an example how to build the most complicated expression above - the Mickey Mouse case - using the expression builder:
 
@@ -864,6 +862,102 @@ CUSTOMER(name) inherit.AbstractNamedHybrid -h inherit.AbstractHybrid
 ```
 
 What PriDE does not support are queries based on abstract base entities which automatically consider the tables of the derived non-abstract entities. You can find features like that in JPA, but they require a highly complicated, obscure SQL query assembly - in combination with the table-per-class strategy resulting in SQL union expressions. This is something, which doesn't happen too often and should always remain in the developer's responsibility to stay on control of your SQL.
+
+# SQL Expression Builder
+
+If you walked through the preceding chapters of this manual, you already came across some simple examples for building SQL expressions with PriDE's expression builder. As this helpful little utility will be used more intensively in the following chapters, it is worth to understand its idea. It does not really depend on SQL but can be used for any string assembly where things become too confusing when making use of Java's built-in capabilities like string concatenation, StringBuilder oder String.format(). Actually it is just a small extension of String.format().
+
+## Elaborated SQL vs. Java
+
+Let's take up the good old CUSTOMER table from the [Quick  Start Tutorial](#quick-start-tutorial) and let's suppose you want to implement a batch application querying for suspicious new customer registrations, which the system will initially block from order placement until the customers have verified their identity (somehow). We are looking for customers in a certain ID range with
+
+- Either name and first name consist only of a single letter or
+- The summarized length of name and first name id less than 7 letters or
+- Name and first name are identical
+
+SQL is a very powerful and highly expressive and compact language for things like that. The appropriate where-clause would look like that, where only the boundaries of the ID range differ from one call to the next:
+
+```
+id between <lowest> and <highest> and (
+    ( length(name) + length(first_name) < 7) or
+    ( length(name) < 2 and length(first_name) < 2 ) or
+    ( name = first_name )
+)
+```
+
+No matter which assembly API your Java persistence manager provides - JPA's criteria API, PriDE's WhereCondition, or JOOQ's DSL API - it will cost a lot more Java code than SQL code to assemble the expression, and it will become hard to tell from the Java code what the resulting SQL may look like. So the recommendation is: for the sake of SQL maintainability, integrate the SQL code in your Java code *as is*. Of course, Java won't accept SQL syntax, so "integration as is" means integration as a String after having verified syntactical correctness in a suitable SQL tool. Unfortunately this would raise another maintenance problem: the String literal is a big, big [magic number](https://en.wikipedia.org/wiki/Magic_number_(programming)) composite and conflicts with the DRY principle. Although it contains various column name references you won't be able to safely detect that the query might be affected e.g. when the NAME column requires a size change. You hopefully don't try a full text search for the term "name" ;-)
+
+As a first step towards a solution, PriDE's entity generator generates constants for table and column names, and it is strongly recommended to use these columns for SQL expression assembly. However concatenating String fragments and constants won't result in better readability:
+
+```
+COL_ID + " between " + lowest + " and " + highest + " and ( " +
+"( length( + COL_NAME + ") + length( " + COL_FIRST_NAME + ") < 7) or" +
+...
+```
+
+String.format() is designed to keep the structure of the result string recognizable, but in this case it won't help too much:
+
+```
+String.format(
+"%s between %d and %d and (" +
+"    ( length(%s) + length(%s) < 7) or" +
+"    ( length(%4$s) < 2 and length(%5$s) < 2 ) or" +
+"    ( %4$s = %5$s )" +
+")",
+COL_ID, lowest, highest, COL_NAME, COL_FIRSTNAME);
+```
+
+## Elaborated SQL with SQLExpressionBuilder
+
+PriDE's expression builder extends String.format() in a way, the you can use identifiers rather than just % and position numbers as variables. The builder is address by the static function `build(String formatString, Object... args)` in class pm.pride.SQL. Identifiers in the format string that require replacement by any of the following arguments begin with an @ character and end with the first character that is neither a letter nor an underscore. Based on that, the SQL can be represented almost natively:
+
+```
+String.format(
+"@id between %d and %d and (" +
+"    ( length(@name) + length(@first_name) < 7) or" +
+"    ( length(@name) < 2 and length(@first_name) < 2 ) or" +
+"    ( @name = @first_name )" +
+")",
+COL_ID, lowest, highest, COL_NAME, COL_FIRSTNAME);
+```
+
+As you can see, the identifier feature can be combined with Java's standard replacement feature. arguments are assigned to identifiers in order of occurrence in the format string. Repeated occurrences of an identifier are replaced by the argument which was assigned to the identifier on its first occurrence.
+
+If you need lots of arguments, it is helpful to split the argument list in multiple lines like the format string. Each argument line contains only the arguments which are (first) assigned to the identifiers of the corresponding line from the format string. Applied to the example above it looks like that:
+
+```
+String.format(
+"@id between %d and %d and (" +
+"    ( length(@name) + length(@first_name) < 7) or" +
+"    ( length(@name) < 2 and length(@first_name) < 2 ) or" +
+"    ( @name = @first_name )" +
+")",
+COL_ID, lowest, highest,
+COL_NAME, COL_FIRSTNAME);
+```
+
+A small expression like above doesn't need those tricks, but e.g. a complex SQL merge statement may require 20 arguments and more. Alternatively you may also combine identifiers with position numbers as known from String.format(), so that you can check the identifier/argument matching by counting:
+
+```
+String.format(
+"@1$id between %2$d and %3$d and (" +
+"    ( length(@4$name) + length(@5$first_name) < 7) or" +
+"    ( length(@name) < 2 and length(@first_name) < 2 ) or" +
+"    ( @name = @first_name )" +
+")",
+COL_ID, lowest, highest,
+COL_NAME, COL_FIRSTNAME);
+```
+
+Only one occurrence of an identifier needs to be accompanied by a position specification, while all the others automatically inherit the argument assignment. You may add the position number to all occurrences but then they have to be identical. Re-positioning is not allowed.
+
+## Building and Formatting
+
+All identifiers are replaced by the string representation of its assigned argument. The expression builder is *not* concerned with SQL value formatting. If you do not only pass column, table, and alias names as arguments but also *values*, you must ensure proper SQL formatting. There are different approaches to achieve that.
+
+- Add formatting characters to the SQL string. This works well for simple data types like string and integer values, but you must be aware of the [SQL injection risk](https://www.w3schools.com/sql/sql_injection.asp) if the values come from an untrustworthy source like a consumer website.
+- Format the value before passing it to the argument list. The value formatter for the current database is available through `DatabaseFactory.getDatabase().formatValue(Object value)`. The result is a fully formatted SQL value string. E.g. passing a string HELLO results in an SQL formatted String 'HELLO'.
+- Just place a ? character in the SQL string and pass the value argument to the function that consumes the SQL rather than the builder. You can see an example at the end of chapter [Find and Query](#find-and-query) in section [Arbitrary Criteria](#arbitrary-criteria). 
 
 # Joins
 
