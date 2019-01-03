@@ -156,7 +156,7 @@ def save_new_file_with_title(filename, title, lines):
     with open(filename, 'w') as f:
         f.write("% " + title)
         for line in lines:
-            f.write(line + "\n")
+            f.write(line)
 
 
 def save_parsed_file_to_output_directory(parsed_file, outputdir, navigation_template):
