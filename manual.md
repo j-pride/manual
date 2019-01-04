@@ -871,8 +871,8 @@ If you walked through the preceding chapters of this manual, you already came ac
 
 Let's take up the good old CUSTOMER table from the [Quick  Start Tutorial](#quick-start-tutorial) and let's suppose you want to implement a batch application querying for suspicious new customer registrations, which the system will initially block from order placement until the customers have verified their identity (somehow). We are looking for customers in a certain ID range with
 
-- Either name and first name consist only of a single letter or
-- The summarized length of name and first name id less than 7 letters or
+- The summarized length of name and first name is less than 7 letters or
+- The name consist only of a single letter or
 - Name and first name are identical
 
 SQL is a very powerful and highly expressive and compact language for things like that. The appropriate where-clause would look like that, where only the boundaries of the ID range differ from one call to the next:
@@ -880,7 +880,7 @@ SQL is a very powerful and highly expressive and compact language for things lik
 ```
 id between <lowest> and <highest> and (
     ( length(name) + length(first_name) < 7) or
-    ( length(name) < 2 and length(first_name) < 2 ) or
+    ( length(name) < 2 ) or
     ( name = first_name )
 )
 ```
@@ -901,7 +901,7 @@ String.format() is designed to keep the structure of the result string recogniza
 String.format(
 "%s between %d and %d and (" +
 "    ( length(%s) + length(%s) < 7) or" +
-"    ( length(%4$s) < 2 and length(%5$s) < 2 ) or" +
+"    ( length(%4$s) < 2 ) or" +
 "    ( %4$s = %5$s )" +
 ")",
 COL_ID, lowest, highest, COL_NAME, COL_FIRST_NAME);
@@ -915,13 +915,21 @@ PriDE's expression builder extends String.format() in a way, the you can use ide
 SQL.build(
 "@id between %d and %d and (" +
 "    ( length(@name) + length(@first_name) < 7) or" +
-"    ( length(@name) < 2 and length(@first_name) < 2 ) or" +
+"    ( length(@name) < 2 ) or" +
 "    ( @name = @first_name )" +
 ")",
-COL_ID, lowest, highest, COL_NAME, COL_FIRSTNAME);
+COL_ID, lowest, highest, COL_NAME, COL_FIRST_NAME);
 ```
 
-As you can see, the identifier feature can be combined with Java's standard replacement feature. arguments are assigned to identifiers in order of occurrence in the format string. Repeated occurrences of an identifier are replaced by the argument which was assigned to the identifier on its first occurrence.
+As you can see, the identifier feature can be combined with Java's standard replacement feature. Arguments are assigned to identifiers in order of occurrence in the format string. Repeated occurrences of an identifier are replaced by the argument which was assigned to the identifier on its first occurrence.
+
+By default, the identifiers and the assigned argument values don't have to be identical, so the identifiers may be abbreviations or - vice versa - more descriptive forms of the actual table or column names passed as arguments. The possible risk is a hidden miss-assignment which still leads to syntactically valid SQL but to a wrong business logic. Referring to the example, swap the constants COL_NAME and COL_FIRST_NAME in the argument list and it results only in a minimal subtle miss behavior. If you don't have fine-grained test suite to reveal such a bug, you may use the expression builder in a more restrictive way. If you call SQL.buildx() instead of SQL.build() the builder will throw an InvalidArgumentException if the variable identifiers don't match the values of the assigned arguments based on a case-insensitive string comparison. E.g. the following SQL assembly would fail as the argument value "name" would be assigned to the variable identifier "first_name":
+
+```
+SQL.buildx("@first_name is null", "name")
+```
+
+This variant implies that you use the % notation where name conformity doesn't make sense, e.g. for a column *value* instead of a column *name* like the ID range boundary values in the examples above. Additional validation options are available when you use the class SQLExpressionBuilder and its constructors directly. They allow to specify if the identifier comparison should be performed case sensitive or case insensitive and if the builder should actually throw an exception in case of miss-matches or just print out a warning on Stderr. Furthermore you may change the validation behavior of SQL.build() by setting SQLExpressionBuilder's static member `validationDefault`.
 
 If you need lots of arguments, it is helpful to split the argument list in multiple lines like the format string. Each argument line contains only the arguments which are (first) assigned to the identifiers of the corresponding line from the format string. Applied to the example above it looks like that:
 
@@ -929,24 +937,23 @@ If you need lots of arguments, it is helpful to split the argument list in multi
 SQL.build(
 "@id between %d and %d and (" +
 "    ( length(@name) + length(@first_name) < 7) or" +
-"    ( length(@name) < 2 and length(@first_name) < 2 ) or" +
+"    ( length(@name) < 2 ) or" +
 "    ( @name = @first_name )" +
 ")",
 COL_ID, lowest, highest,
 COL_NAME, COL_FIRST_NAME);
 ```
 
-A small expression like above doesn't need those tricks, but e.g. a complex SQL merge statement may require 20 arguments and more. Alternatively you may also combine identifiers with position numbers as known from String.format(), so that you can check the identifier/argument matching by counting:
+A small expression as the one above doesn't need those tricks, but e.g. a complex SQL merge statement may require 20 arguments and more. Alternatively you may combine identifiers with position numbers as known from String.format(), so that you can check the identifier/argument matching by counting:
 
 ```
 SQL.build(
 "@1$id between %2$d and %3$d and (" +
 "    ( length(@4$name) + length(@5$first_name) < 7) or" +
-"    ( length(@name) < 2 and length(@first_name) < 2 ) or" +
+"    ( length(@name) < 2 ) or" +
 "    ( @name = @first_name )" +
 ")",
-COL_ID, lowest, highest,
-COL_NAME, COL_FIRST_NAME);
+COL_ID, lowest, highest, COL_NAME, COL_FIRST_NAME);
 ```
 
 Only one occurrence of an identifier needs to be accompanied by a position specification, while all the others automatically inherit the argument assignment. You may add the position number to all occurrences but then they have to be identical. Re-positioning is not allowed.
