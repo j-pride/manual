@@ -879,7 +879,7 @@ SQL is a very powerful and highly expressive and compact language for things lik
 
 ```
 id between <lowest> and <highest> and (
-    ( length(name) + length(first_name) < 7) or
+    ( length(name) + length(first_name) < 7 ) or
     ( length(name) < 2 ) or
     ( name = first_name )
 )
@@ -891,7 +891,7 @@ As a first step towards a solution, PriDE's entity generator generates constants
 
 ```
 COL_ID + " between " + lowest + " and " + highest + " and ( " +
-"( length( + COL_NAME + ") + length( " + COL_FIRST_NAME + ") < 7) or" +
+"( length( + COL_NAME + ") + length( " + COL_FIRST_NAME + ") < 7 ) or" +
 ...
 ```
 
@@ -900,7 +900,7 @@ String.format() is designed to keep the structure of the result string recogniza
 ```
 String.format(
 "%s between %d and %d and (" +
-"    ( length(%s) + length(%s) < 7) or" +
+"    ( length(%s) + length(%s) < 7 ) or" +
 "    ( length(%4$s) < 2 ) or" +
 "    ( %4$s = %5$s )" +
 ")",
@@ -914,7 +914,7 @@ PriDE's expression builder extends String.format() in a way, the you can use ide
 ```
 SQL.build(
 "@id between %d and %d and (" +
-"    ( length(@name) + length(@first_name) < 7) or" +
+"    ( length(@name) + length(@first_name) < 7 ) or" +
 "    ( length(@name) < 2 ) or" +
 "    ( @name = @first_name )" +
 ")",
@@ -936,7 +936,7 @@ If you need lots of arguments, it is helpful to split the argument list in multi
 ```
 SQL.build(
 "@id between %d and %d and (" +
-"    ( length(@name) + length(@first_name) < 7) or" +
+"    ( length(@name) + length(@first_name) < 7 ) or" +
 "    ( length(@name) < 2 ) or" +
 "    ( @name = @first_name )" +
 ")",
@@ -949,7 +949,7 @@ A small expression as the one above doesn't need those tricks, but e.g. a comple
 ```
 SQL.build(
 "@1$id between %2$d and %3$d and (" +
-"    ( length(@4$name) + length(@5$first_name) < 7) or" +
+"    ( length(@4$name) + length(@5$first_name) < 7 ) or" +
 "    ( length(@name) < 2 ) or" +
 "    ( @name = @first_name )" +
 ")",
