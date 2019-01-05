@@ -24,7 +24,10 @@ The chapter [PriDE design principles](#pride-design-principles) gives an overvie
 
 This manual gives you a complete overview about PriDE's standard functionality, design patterns and design principles. It is not mandatory to work through all the details unless you want to become an expert. However, it is strongly recommended to begin with the [quick start tutorial](#quick-start-tutorial) as many code fragments in other chapters come back to the quick start example. The chapters [Find and Query](#find-and-query) and [Insert, Update, and Delete](#insert-update-and-delete) describe the core functionality you should become familiar with. All other chapters describe special aspects which you can dive into, when the time has come.
 
-Many code fragments in this manual refer to existing example code which is either included in every PriDE delivery or can be [downloaded from GitHub](https://github.com/j-pride/pride.pm/tree/master/examples). 
+Many code fragments in this manual refer to existing example code which is available in an [appropriate repository on GitHub](https://github.com/j-pride/manual-example-code). The repository includes a [pom.xml](https://github.com/j-pride/manual-example-code/blob/master/pom.xml) file to run all examples on a local SQLite database. To have all source code at your fingertips at any time it is recommended to
+
+- clone the repository (`git clone https://github.com/j-pride/manual-example-code.git`) and
+- build the project using Maven (`mvn clean compile`)
 
 At January 2019, the PriDE 3 manual is work in progress. Beside the core chapters above there are chapters coming soon for the following aspects
 
@@ -46,7 +49,7 @@ A good information source for features which are not yet covered by this manual 
 
 # Quick Start Tutorial
 
-This short tutorial gives an introduction into the general working principles of PriDE, based on a simple example. It takes less than half an hour to set up a simple PriDE application which allows to perform basic operations on a single database table. The directory [examples/quickstart](https://github.com/j-pride/pride.pm/tree/master/src/examples/java/quickstart) of the PriDE delivery contains the complete source code for the tutorial example.
+This short tutorial gives an introduction into the general working principles of PriDE, based on a simple example. It takes less than half an hour to set up a simple PriDE application which allows to perform basic operations on a single database table. The package [quickstart](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/quickstart) of the [PriDE manual example code repository on GitHub](https://github.com/j-pride/manual-example-code/) contains the complete source code for the tutorial example.
 
 Setting up an application includes the following steps:
 
@@ -60,7 +63,9 @@ I.e. there's only a few minutes time for each step now, so let's hurry up ;-)
 
 ## Preparing the development project
 
-Working with PriDE requires to add the library pride.jar into the CLASSPATH of the working environment, as well as the JDBC driver of the database to access. E.g. in case of a MySQL 6 database this is the library mysql-connector-java-6.0.6.jar, for Oracle 11 the library ojdbc8.jar, for HSQL 2.x the library hsqldb-2.x.y.jar, and for SQLite 3 the library sqlite-jdbc-3.x.y.jar. The ultra light database SQLite is the best choice for first experiments. Driver class, database URL, database user, and password are supposed to be provided as system properties in this tutorial examples. For SQLite and a local example database, user and password can be omitted and the properties look like this:
+Working with PriDE requires to add the library pride-x-y-z.jar into the CLASSPATH of the working environment, as well as the JDBC driver of the database to access. E.g. in case of a MySQL 6 database this is the library mysql-connector-java-6.y.z.jar, for Oracle 11 the library ojdbc8.jar, for HSQL 2.x the library hsqldb-2.y.z.jar, and for SQLite 3 the library sqlite-jdbc-3.y.z.jar. The ultra light database SQLite in server-less mode is the best choice for first experiments. You may set up a playground project by cloning PriDE's [manual examples source code repository on GitHub](https://github.com/j-pride/manual-example-code) and compile its sources with Maven, using the included [pom.xml](https://github.com/j-pride/manual-example-code/blob/master/pom.xml). However, as PriDE and SQLite do not depend on any other libraries, you can easily download the PriDE and SQLite JAR files from Maven central and create a project with any technique you like.
+
+Driver class, database URL, database user, and password are supposed to be provided as system properties in this tutorial examples. For SQLite and a local example database, user and password can be omitted and the properties look like this:
 
 ```
 pride.dbtype=sqlite
@@ -83,7 +88,7 @@ create table CUSTOMER (
 );
 ```
 
-Add this table now to your SQLite database, using SQLite's command shell or by running the following Java class being included in the PriDE example code:
+Add this table now to your SQLite database, using SQLite's command shell or by running class [CreateCustomerTable](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/quickstart/CreateCustomerTable.java) included in the PriDE manual example code:
 
 ```
 java
@@ -107,7 +112,7 @@ java
 pm.pride.util.generator.EntityGenerator CUSTOMER quickstart.Customer > Customer.java
 ```
 
-The generator writes its output to the console, so you can either redirect the output to file as you see above or create the class in the IDE of your choice and copy the output from the console to your class editor. Note that you may also generate the descriptive parts in a *separate* class to keep the entity bean class free from database aspects. For the tutorial example under [examples/quickstart](https://github.com/j-pride/pride.pm/tree/master/src/examples/java/quickstart) we generate a hybrid class which looks like this:
+The generator writes its output to the console, so you can either redirect the output to file as you see above or create the class in the IDE of your choice and copy the output from the console to your class editor. Note that you may also generate the descriptive parts in a *separate* class to keep the entity bean class free from database aspects. For the tutorial example we generate a hybrid class which looks like this:
 
 ```
 public class Customer extends MappedObject {
@@ -196,7 +201,7 @@ public void queryByName( String name )
 
 ## Running the application
 
-The tutorial example under examples/quickstart includes the file CustomerClient.java, providing an interactive test client. Calling the client with its system property based initialization looks like this:
+The tutorial example on [GitHub](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/quickstart) includes the class [CustomerClient](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/quickstart/CustomerClient.java), providing an interactive test client. Calling the client with its system property based initialization looks like this:
 
 ```
 java
@@ -218,7 +223,7 @@ The tutorial example already introduces the most important basic elements of Pri
 
 ## Before you go ahead...
 
-Before you go on you should simplify the configuration in a way that you don't have to provide system properties every time you call a client. Although PriDE does not *require* any descriptive languages, they are sometimes quite helpful. To simplify the playing-around with examples, all client programs included in the PriDE examples use the class util.ResourceAccessorExampleConfig for initialization. It allows to assemble the configuration from two sources: system properties as it was introduced so far and a property file config/pride.examples.config.properties. As the configuration properties probably stay unchanged through all your experiments, you should transfer all your command line system properties to file (without the leading "-D" of course) and start your client programs without passing any system properties at all. To run the entity generator with the file-based configuration call the wrapper class util.EntityGeneratorWithExampleConfig which is also included in the examples.
+Before you go on you should simplify the configuration in a way that you don't have to provide system properties every time you call a client. Although PriDE does not *require* any descriptive languages, they are sometimes quite helpful. To simplify the playing-around with examples, all client programs included in the PriDE manual examples use the class [util.ResourceAccessorExampleConfig](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/util/ResourceAccessorExampleConfig.java) for initialization. It allows to assemble the configuration from two sources: system properties as it was introduced so far and a property file [config/pride.examples.config.properties](https://github.com/j-pride/manual-example-code/blob/master/config/pride.examples.config.properties). As the configuration properties probably stay unchanged through all your experiments, you should transfer all your command line system properties to file (without the leading "-D" of course) and start your client programs without passing any system properties at all. To run the entity generator with the file-based configuration call the wrapper class [util.EntityGeneratorWithExampleConfig](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/util/EntityGeneratorWithExampleConfig.java) which is also included in the examples.
 
 # Entity, Adapter, and Descriptor
 
@@ -247,7 +252,7 @@ java
 pm.pride.util.generator.EntityGenerator CUSTOMER adapter.CustomerEntity -b > CustomerEntity.java
 ```
 
-The parameter -b tells the generator to create only an entity class without descriptor. The result is an ordinary POJO class:
+The parameter -b tells the generator to create only an entity class without descriptor. The result is an ordinary Java bean or POJO class:
 
 ```
 package adapter;
@@ -454,7 +459,7 @@ Customer customer = new Customer();
 customer.queryAll().streamUncloned().forEach(c -> System.out.println(c));
 ```
 
-Examples for find and query code can by found in the class QueryClient in the directory [examples/query](https://github.com/j-pride/pride.pm/tree/master/src/examples/java/query) of the PriDE delivery.
+Examples for find and query code can by found in the class [QueryClient](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/query/QueryClient.java) in the package [query](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/query) of the PriDE manual source code repository on GitHub.
 
 ## Selection criteria
 
@@ -572,7 +577,7 @@ If you want to learn more about the expression builder right now, read the chapt
 
 # Insert, Update, and Delete
 
-The basic functionality for inserting, updating and deleting data is very simple. In addition to the basics, this chapter also explains how to manage transactions which is of course a very important issue when you manipulate the data. For most code snippets in this chapter you can find example code in the directory [examples/modify](https://github.com/j-pride/pride.pm/tree/master/src/examples/java/modify) in the PriDE delivery and on GitHub.
+The basic functionality for inserting, updating and deleting data is very simple. In addition to the basics, this chapter also explains how to manage transactions which is of course a very important issue when you manipulate the data. For most code snippets in this chapter you can find example code in package [modify](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/modify) in the [PriDE manual source code repository on GitHub](https://github.com/j-pride/manual-example-code/).
 
 ## Insert
 
@@ -626,7 +631,7 @@ for (int i = 0; i < 10; i++) {
 }
 ```
 
-You find an example for a customer class with auto-increment ID in directory [examples/modify](https://github.com/j-pride/pride.pm/tree/master/src/examples/java/modify) in the PriDE delivery.
+You find an example for a [customer class with auto-increment ID](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/modify/AutoIncCustomer.java) in package [modify](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/modify) in the PriDE manual source code repository on GitHub.
 
 ## Transactions
 
@@ -728,7 +733,7 @@ From a technical point of view, entity inheritance is of interest to encapsulate
 
 As a simple example for inheritance, you can split up the Customer entity in a way that the ID is encapsulated in a separate entity class IdentifiedEntity which the Customer entity is derived from. This is based on the assumption that all entity classes should have a unique ID row which is a wide-spread concept.
 
-Inheritance in PriDE is a bit inconvenient as you have to maintain more than one inheritance hierarchy. However, new tables and entities don't shoot like mushrooms out of the ground, so there's no reason to bother. Beside the entities, you also have to relate both entities' descriptors, and if you are working with separate adapters, the adapter classes have to be derived from each other too. As long as you are using 1:1 mappings, you can let PriDE's entity generator do most of the job. So here is how to generate the little inheritance hierarchy which you can find in directory [examples/inheritance](https://github.com/j-pride/pride.pm/tree/master/src/examples/java/inheritance) in the PriDE delivery or on GitHub. You start with generating the base class. As the generator is based on table structures in a database and there is no such concept like "base classes" in SQL, you must ensure that the CUSTOMER table is already present (resp. any other table following the same pattern with a technical ID) . To generate a class which does not map all the columns, you specify the columns of interest as comma-separated list along with the table name when calling the generator:
+Inheritance in PriDE is a bit inconvenient as you have to maintain more than one inheritance hierarchy. However, new tables and entities don't shoot like mushrooms out of the ground, so there's no reason to bother. Beside the entities, you also have to relate both entities' descriptors, and if you are working with separate adapters, the adapter classes have to be derived from each other too. As long as you are using 1:1 mappings, you can let PriDE's entity generator do most of the job. So here is how to generate the little inheritance hierarchy which you can find in package [inheritance](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/inheritance) in the PriDE manual examples source code repository on [GitHub](https://github.com/j-pride/manual-example-code). You start with generating the base class. As the generator is based on table structures in a database and there is no such concept like "base classes" in SQL, you must ensure that the CUSTOMER table is already present (resp. any other table following the same pattern with a technical ID) . To generate a class which does not map all the columns, you specify the columns of interest as comma-separated list along with the table name when calling the generator:
 
 ```
 java
@@ -826,7 +831,7 @@ Note the following details:
 - The RecordDescriptor contains only mappings for these attributes and refers to the RecordDescriptor from the base class. The complete mapping for the CUSTOMER table is assembled from both descriptors.
 - The re-constructor doesn't call the findx() method but the super re-constructor from AbstractEntity instead which already does the find job. The base class will consider *all* the mappings because the derived class overrides the methods getDescriptor() and getKeyFields().
 
-The resulting DerivedCustomer class behaves exactly like the Customer class from the [Quick Start Tutorial](#quick-start-tutorial). You can check that by running the CustomerClient from the quick start tutorial in parallel with the equivalent DerivedCustomerClient from the examples/inherit directory. Both have the same functionality and operate on the same table but work with the two different entity representations. This reveals an important fact about PriDE's concept how inheritance is mapped to SQL where you don't find such a concept. In terms of JPA, PriDE follows the [table-per-class strategy](https://en.wikibooks.org/wiki/Java_Persistence/Inheritance#Example_table_per_class_inheritance_tables_in_database). For every non-abstract class in the hierarchy there must exist a database table with columns for *all* mapped attributes of the class itself and *all* its super classes.
+The resulting DerivedCustomer class behaves exactly like the Customer class from the [Quick Start Tutorial](#quick-start-tutorial). You can check that by running the [CustomerClient](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/quickstart/CustomerClient.java) from the quick start tutorial in parallel with the equivalent [DerivedCustomerClient](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/inherit/DerivedCustomerClient.java) from the package [inherit](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/inherit). Both have the same functionality and operate on the same table but work with the two different entity representations. This reveals an important fact about PriDE's concept how inheritance is mapped to SQL where you don't find such a concept. In terms of JPA, PriDE follows the [table-per-class strategy](https://en.wikibooks.org/wiki/Java_Persistence/Inheritance#Example_table_per_class_inheritance_tables_in_database). For every non-abstract class in the hierarchy there must exist a database table with columns for *all* mapped attributes of the class itself and *all* its super classes.
 
 ## Inheritance with separate adapters
 
@@ -852,7 +857,7 @@ CUSTOMER inherit.DerivedCustomerAdapter inherit.DerivedCustomerEntity inherit.Ab
 
 An important detail is that generating the derived bean class requires to specify the base *adapter* class, not the base *entity* class in the generator call. In fact the generator needs to know about both, but the entity class can be determined from the adapter class' record descriptor. The pure base entity class however doesn't know about its mapping - that's lastly the goal of the separation ;-)
 
-The output of these generator calls is a very straight-forward separation of the hybrid code above. There is nothing tricky to know about. You can find the outcome in the examples/inherit directory from the PriDE delivery resp. on GitHub.
+The output of these generator calls is a very straight-forward separation of the hybrid code above. There is nothing tricky to know about. You can find the outcome in the package [inherit](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/inherit) from the PriDE manual examples source code repository on [GitHub](https://github.com/j-pride/manual-example-code).
 
 Entity inheritance hierarchies are of course not limited in their depth. E.g. if it were a typical pattern that entities have names, try this command and have a look on the output:
 
@@ -985,4 +990,4 @@ create table ADDRESS (
 );
 ```
 
- Each customer optionally has an address attached. You find a corresponding entity and a table creation class in the directory examples/joins.
+ Each customer optionally has an address attached. You find a corresponding [Address entity](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/joins/Address.java) and a [table creation class](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/joins/CreateAddressTable.java) in the package [joins](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/joins) of PriDE's manual examples source code repository on [GitHub](https://github.com/j-pride/manual-example-code).
