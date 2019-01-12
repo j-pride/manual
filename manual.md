@@ -121,16 +121,16 @@ public class Customer extends MappedObject {
     public static final String COL_NAME = "name";
     public static final String COL_FIRST_NAME = "first_name";
 
-    protected static final RecordDescriptor red = new RecordDescriptor
-        (Customer.class, TABLE, null, new String[][] {
-            { COL_ID,   "getId",   "setId" },
-            { COL_NAME,   "getName",   "setName" },
-            { COL_FIRST_NAME,   "getFirstName",   "setFirstName" },
-        });
+    protected static final RecordDescriptor red =
+      new RecordDescriptor(Customer.class, TABLE, null)
+        .row(COL_ID, "getId", "setId")
+        .row(COL_NAME, "getName", "setName")
+        .row(COL_FIRST_NAME, "getFirstName", "setFirstName");
 
     public RecordDescriptor getDescriptor() { return red; }
 
-    private static String[] keyFields = new String[] { COL_ID };
+    private static String[] keyFields =
+      new String[] { COL_ID };
     public String[] getKeyFields() { return keyFields; }
 
     private long id;
@@ -300,12 +300,11 @@ public class CustomerAdapter extends ObjectAdapter {
     public static final String COL_NAME = "name";
     public static final String COL_FIRST_NAME = "first_name";
 
-    protected static final RecordDescriptor red = new RecordDescriptor
-        (CustomerEntity.class, TABLE, null, new String[][] {
-            { COL_ID,   "getId",   "setId" },
-            { COL_NAME,   "getName",   "setName" },
-            { COL_FIRST_NAME,   "getFirstName",   "setFirstName" },
-        });
+    protected static final RecordDescriptor red =
+      new RecordDescriptor(CustomerEntity.class, TABLE, null)
+        .row(COL_ID, "getId", "setId")
+        .row(COL_NAME, "getName", "setName")
+        .row(COL_FIRST_NAME, "getFirstName", "setFirstName");
 
     public RecordDescriptor getDescriptor() { return red; }
 
@@ -339,19 +338,19 @@ One note concerning packages: When you actually use the pattern of separate adap
 
 ## Descriptor structure
 
-The examples for descriptors you have seen so far should already clarify most of their structure. You will see more complicated examples in following chapters of this manual. A descriptor in assembled from the following information:
+The examples for descriptors you have seen so far should already clarify most of the descriptor structure. You will see more complicated examples in following chapters of this manual. A descriptor is assembled from the following information:
 
 - The name of the entity class and the name of the database table which the entity class is mapped to. Preferably the table name is not specified as a string-literal but as a reference to a constant representing the table name. If you have a look on the outcome of PriDE's code generator, there are appropriate constants generated and used.
 
 - A reference to the descriptor of a base class. This is of interest when you build up an inheritance hierarchy  between entity classes as explained in chapter [Entity Inheritance](#entity-inheritance).
 
-- An attribute description map in form of a two-dimensional string array. The array contains one sub array for every table column resp. entity class attribute consisting of
+- A table row to attribute mapping by adding calls of the row() method for every row of interest. The row() method returns the descriptor object, making up a fluent API. Every row/attribute mapping consists of
 
   - The name of the database column (similar to table names: avoid using string-literals here)
   - The name of the getter method for the corresponding attribute in the entity class
   - The name of the setter method
 
-  The methods are the ones which the adapter is supposed to transport entity attributes to the database via JDBC and vice versa. The getter methods' return type implies which methods the adapter uses to access JDBC statements and result sets and how to translate the values to SQL syntax. Getters are mandatory whereas setters may be null in case of entity types that are never supposed to be written to the database. A typical example for this case are entity classes representing the result of SQL joins (see chapter [Joins](#joins)). 
+  The methods are the ones which the adapter is supposed to use for transporting entity attributes to the database via JDBC and vice versa. The getter methods' return type implies which methods the adapter uses to access JDBC statements and result sets and how to translate the values to SQL syntax. Getters are mandatory whereas setters may be null in case of entity types that are never supposed to be written to the database. A typical example for this case are entity classes representing the result of SQL joins (see chapter [Joins](#joins)). 
 
 The RecordDescriptor class has a few more constructors concerned with joins and [accessing multiple databases](#multiple-databases), but that's not important for now. The basic structure described above is what you work with most of the time.
 
@@ -365,7 +364,7 @@ A query means to select data with an unpredictable number of result. PriDE is de
 
 Examples for finding a record with PriDE were already part of the [quick start tutorial](#quick-start-tutorial) and the chapter about [entity, adapter, and descriptor](#entity-adapter-and-descriptor). But let's go into some details here for a deeper understanding. The important things to know:
 
-- No matter if you are working with hybrid objects or a separation of entity and adapter - PriDE never creates entities for you but expects you to provide them.
+- No matter if you are working with hybrid objects or a separation of entity and adapter - PriDE doesn't creates entities for you but expects you to provide them.
 - Find operations work like a query-by-example. You provide an entity with all the primary key fields initialized and call the find() or findx() method without parameters. This is a method of the entity class itself when using hybrid entities, otherwise it is a method of the corresponding adapter class.
 - The result of the find operation is placed in the same entity which you provided the key fields by. The boolean return value of the find() method tells the caller if there was actually a matching record found. The findx() method reports a missing match by an exception which if of interest for situations where a missing result is a unexpected case. Think of typical navigation like retrieving the customer who placed an order. You usually don't expect the customer not being present in the database.
 
@@ -529,10 +528,10 @@ WhereCondition byMickeyMouse = new WhereCondition()
 	.bracketClose();
 ```
 
-What of you are interested in other suspicious cases where name and first name are equal. In this case, the value is a field name itself and you have to bypass the value formatting. This is achieved by passing raw SQL values like that:
+What of you are interested in other suspicious cases where name and first name are equal. In this case, the value is a field name itself and you have to bypass the value formatting. This is achieved by passing pre-formatted SQL values like that:
 
 ```
-.and(COL_FIRST_NAME, SQL.raw(COL_NAME))
+.and(COL_FIRST_NAME, SQL.pre(COL_NAME))
 ```
 
 Finally the WhereCondition can be extended by ordering and grouping clauses. E.g. the following condition selects all customers ordered by name and first name:
@@ -747,10 +746,9 @@ The call above uses the class EntityGeneratorWithExampleConfig mentioned at the 
 abstract public class AbstractHybrid extends MappedObject implements Cloneable, java.io.Serializable {
     public static final String COL_ID = "id";
 
-    protected static final RecordDescriptor red = new RecordDescriptor
-        (AbstractHybrid.class, null, null, new String[][] {
-            { COL_ID,   "getId",   "setId" },
-        });
+    protected static final RecordDescriptor red =
+      new RecordDescriptor(AbstractHybrid.class, null, null)
+            .row( COL_ID, "getId", "setId" );
 
     public RecordDescriptor getDescriptor() { return red; }
 
@@ -794,11 +792,10 @@ public class DerivedCustomer extends inherit.AbstractHybrid {
     public static final String COL_NAME = "name";
     public static final String COL_FIRST_NAME = "first_name";
 
-    protected static final RecordDescriptor red = new RecordDescriptor
-        (DerivedCustomer.class, TABLE, inherit.AbstractHybrid.red, new String[][] {
-            { COL_NAME,   "getName",   "setName" },
-            { COL_FIRST_NAME,   "getFirstName",   "setFirstName" },
-        });
+    protected static final RecordDescriptor red =
+      new RecordDescriptor(DerivedCustomer.class, TABLE, inherit.AbstractHybrid.red)
+        .row(COL_NAME, "getName", "setName")
+        .row(COL_FIRST_NAME, "getFirstName", "setFirstName");
 
     public RecordDescriptor getDescriptor() { return red; }
 
@@ -926,7 +923,7 @@ SQL.build(
 COL_ID, lowest, highest, COL_NAME, COL_FIRST_NAME);
 ```
 
-As you can see, the identifier feature can be combined with Java's standard replacement feature. Arguments are assigned to identifiers in order of occurrence in the format string. Repeated occurrences of an identifier are replaced by the argument which was assigned to the identifier on its first occurrence.
+As you can see, the identifier feature can be combined with Java's standard replacement feature addressed by % characters. Arguments are assigned to identifiers in order of occurrence in the format string. Repeated occurrences of an identifier are replaced by the argument which was assigned to the identifier on its first occurrence.
 
 By default, the identifiers and the assigned argument values don't have to be identical, so the identifiers may be abbreviations or - vice versa - more descriptive forms of the actual table or column names passed as arguments. The possible risk is a hidden miss-assignment which still leads to syntactically valid SQL but to a wrong business logic. Referring to the example, swap the constants COL_NAME and COL_FIRST_NAME in the argument list and it results only in a minimal subtle miss behavior. If you don't have fine-grained test suite to reveal such a bug, you may use the expression builder in a more restrictive way. If you call SQL.buildx() instead of SQL.build() the builder will throw an InvalidArgumentException if the variable identifiers don't match the values of the assigned arguments based on a case-insensitive string comparison. E.g. the following SQL assembly would fail as the argument value "name" would be assigned to the variable identifier "first_name":
 
@@ -976,8 +973,8 @@ All identifiers are replaced by the string representation of its assigned argume
 PriDE provides different techniques to express joins, depending on the purpose resp. the type of outcome of the join:
 
 - An entity being a 1:1 mapping of a table because the join is only required for complicated selection conditions that take related tables into account.
-- An extended entity consisting of a 1:1 mapping of a table, extended by a few attributes from a related table
-- An entity composition, i.e. an entity for a 1:1 mapping of a table, extended by references to related entities that also represent 1:1 table mappings
+- An extended entity consisting of a 1:1 mapping of a table, extended by a few attributes from a related table.
+- An entity composition, i.e. an entity for a 1:1 mapping of a table, extended by references to related entities that also represent 1:1 table mappings.
 - A composition from table fragments and/or computations, making up a new type of entity with its own specific meaning.
 
 The different variants are explained with the CUSTOMER table being used in all other examples so far, and an additional table ADDRESS like this:
@@ -990,4 +987,15 @@ create table ADDRESS (
 );
 ```
 
- Each customer optionally has an address attached. You find a corresponding [Address entity](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/joins/Address.java) and a [table creation class](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/joins/CreateAddressTable.java) in the package [joins](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/joins) of PriDE's manual examples source code repository on [GitHub](https://github.com/j-pride/manual-example-code).
+Each customer optionally has an address attached and the column customer_id is the foreign key to reference a customer from an address. You find a corresponding [Address entity](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/joins/Address.java) and a [table creation class](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/joins/CreateAddressTable.java) in the package [joins](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/joins) of PriDE's manual examples source code repository on [GitHub](https://github.com/j-pride/manual-example-code).
+
+Bringing customers and addresses together in a query requires a join which may look like that to express an inner join:
+
+```
+select ... from CUSTOMER c join ADDRESS a on a.customer_id = c.id 
+```
+
+Joins are combinations of tables and therefore require a descriptor like tables do. Although simple join cases can be expressed with the RecordDescriptor class explained in chapter [Entity, Adapter, and Descriptor](#entity-adapter-and-descriptor), you will usually work with the derived class `pm.pride.JoinRecordDescriptor`. All following examples make use of that class.
+
+## Joining Fragments
+
