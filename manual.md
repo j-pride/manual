@@ -31,8 +31,6 @@ Many code fragments in this manual refer to existing example code which is avail
 
 At January 2019, the PriDE 3 manual is work in progress. Beside the core chapters above there are chapters coming soon for the following aspects
 
-#### Joins
-
 #### Optimistic Locking
 
 #### JSE, JEE, and ResourceAccessor
@@ -992,10 +990,190 @@ Each customer optionally has an address attached and the column customer_id is t
 Bringing customers and addresses together in a query requires a join which may look like that to express an inner join:
 
 ```
-select ... from CUSTOMER c join ADDRESS a on a.customer_id = c.id 
+select ... from
+CUSTOMER cst
+join ADDRESS addr
+on addr.customer_id = cst.id 
 ```
 
 Joins are combinations of tables and therefore require a descriptor like tables do. Although simple join cases can be expressed with the RecordDescriptor class explained in chapter [Entity, Adapter, and Descriptor](#entity-adapter-and-descriptor), you will usually work with the derived class `pm.pride.JoinRecordDescriptor`. All following examples make use of that class.
 
-## Joining Fragments
+## Joining Table Fragments
+
+Just because it gives the best view on how the join structure appears in PriDE code, let's start with the most open variant: pulling fragments from different tables together, making up a new entity type. This is of interest when selecting huge amounts of records or when the result does not actually represent a primary entity like a customer or an address but is a kind of chimera. E.g. you may need a customer ID pair plus some address data in a query for duplicates, retrieving customers with same names and same addresses. To keep things simple for the beginning, this section's example selects the ID and name from the CUSTOMER table and the city from the associated address. The pure entity part of this chimera looks like this:
+
+```
+public class CustomerNameAndCity {
+    private int id;
+    private String name;
+    private String city;
+
+	// Standard getters and setters as usual
+	// ...
+}
+```
+
+The entity generator cannot produce combined types, so you must assemble it by your own. However, the mechanical work is not really complicated and mature join conditions should remain in the developer's responsibility anyway. You can make a hybrid entity from the type above by adding only a few details:
+
+```
+public class CustomerNameAndCity extends MappedObject {
+	// attributes, getters, and setters like above
+	
+	protected static final RecordDescriptor red;
+	
+	public RecordDescriptor getDescriptor() { return red; }
+}
+```
+
+You have seen this structure in many examples of this manual before. You may of course separate entity and adapter class as usual, but learning is easier with hybrid types. The essential detail is the assembly of the record descriptor. Using PriDE's JoinRecordDescriptor type, the join is assembled as follows
+
+```
+protected static final RecordDescriptor red =
+	new JoinRecordDescriptor(CustomerNameAndCity.class,
+"CUSTOMER", "cst")
+.join("ADDRESS", "addr",
+"addr.customer_id = cst.id")
+```
+
+The funny line indention above is just there to point out that all the parts of an SQL join are plain to see in the core of the descriptor definition. Compare that to the join at the beginning of this chapter. What needs to be added is the mapping of table columns to attributes. This is accomplished by the row() method which you already know from earlier descriptor examples. You have to add them after each part describing a table. So for the name and city example the complete descriptor looks like that:
+
+```
+protected static final RecordDescriptor red =
+  new JoinRecordDescriptor
+    (CustomerNameAndCity.class, "CUSTOMER", "cst")
+          .row("id", "getId", "setId")
+          .row("name", "getName", "setName")
+      .join("ADDRESS", "addr", "addr.customer_id = cst.id")
+          .row("city", "getCity", "setCity");
+```
+
+Of course it is strongly recommended to substitute the string literal by references to appropriate constants. Usually you should have the (generated) primary entity types for CUSTOMER and ADDRESS available, including constants for tables and columns. Constants for the alias names "cst" and "addr" must be added by the developer, and the join condition should be assembles with the [SQL expression builder](#sql-expression-builder). For the example above the clean-up results in something like that:
+
+```
+public static final String CUSTOMER_ALIAS = "cst";
+public static final String ADDRESS_ALIAS = "addr";
+public static final String CUSTOMER_ADDRESS_JOIN_CONDITION =
+  SQL.build("@addr.@customer_id = @cst.@id",
+    ADDRESS_ALIAS, Address.COL_CUSTOMER_ID,
+    CUSTOMER_ALIAS, Customer.COL_ID);
+
+protected static final RecordDescriptor red =
+  new JoinRecordDescriptor(
+    CustomerNameAndCity.class,
+    Customer.TABLE,
+    CUSTOMER_ALIAS)
+        .row(Customer.COL_ID, "getId", "setId")
+        .row(Customer.COL_NAME, "getName", "setName")
+    .join(
+      Address.TABLE,
+      ADDRESS_ALIAS,
+      CUSTOMER_ADDRESS_JOIN_CONDITION)
+        .row(Address.COL_CITY, "getCity", "setCity");
+```
+
+At the first sight this may look less clear than the example based on string literals. However, the price you pay for the constant-based form is usually worth it when your application grows. Joins are a very powerful concept from SQL but may violate module boundaries in a vertically well-structured Java architecture. if you allow the violation for powerful joins you should at least make the module dependencies trackable by using constants across the boundaries. If you change something in any of the tables and their corresponding primary entity mappings, the depending join descriptors and joined entity types should automatically change as well or lead the developer to broken code through compile time errors. Hidden dependencies by intense use of magic numbers compromises refactoring of the application code, and sophisticated persistence operations should not be an excuse.
+
+If you want to perform a left outer rather than an inner join, you have to exchange the call of method join() by a call of leftJoin(). A typical problem when designing outer join types is the fact that all data from the joined tables is *optional* data. The corresponding attributes which this data is mapped to, must therefore accept null values. I.e. primitive attributes types like `int` or `long` are not suitable.
+
+The complete hybrid entity type [CustomerNameAndCity](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/joins/CustomerNameAndCity.java) (based on constants) can be found in PriDE's manual examples source code repository on [GitHub](https://github.com/j-pride/manual-example-code).
+
+## Joining Entities with Fragments
+
+Another typical join variant is to extend the complete content of a record from one table by fragments from other associated tables. Applied to the customer/address example, something like that for a full customer and the city from the associated address:
+
+```
+select cst.*, addr.city from
+CUSTOMER cst
+join ADDRESS addr
+on addr.customer_id = cst.id 
+```
+
+The term "extend" already leads to the technical solution: create a new type derived from the Customer class which contains the attribute *city* and appropriate mappings. You can use a different constructor for JoinRecordDescriptor here which refers to the base class' descriptor to minimize the additional descriptive work to do.
+
+```
+public class CustomerWithCity extends Customer {
+
+  protected static final RecordDescriptor red =
+    new JoinRecordDescriptor(
+        CustomerWithCity.class,
+        Customer.red,
+        CUSTOMER_ALIAS)
+      .join(
+        Address.TABLE,
+        ADDRESS_ALIAS,
+        CUSTOMER_ADDRESS_JOIN_CONDITION)
+      .row(Address.COL_CITY, "getCity", "setCity");
+
+    public RecordDescriptor getDescriptor() { return red; }
+
+    private String city;
+
+	public String getCity() { return city; }
+	public void setCity(String city) { this.city = city; }
+}
+```
+
+The complete class [CustomerWithCity](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/joins/CustomerWithCity.java) can be found in PriDE's manual examples source code repository on [GitHub](https://github.com/j-pride/manual-example-code). It uses the same join condition and table aliases as the example from section [Joining Table Fragments](#joining-table-fragments). Writing queries for such a class may require to put the table alias in front of column names if the same name appears in more than one of the joined tables. As long as the names are unique, you can work with plain column names. E.g. customers living in London can be found by
+
+```
+CustomerWithCity cwc = new CustomerWithCity();
+cwc.setCity("London");
+cwc.queryByExample(COL_CITY);
+```
+
+If the extended type inherits query methods from the base class, you can still use all methods that don't refer to columns which became ambiguous by the extension. E.g. CustomerWithCity can be equipped by a re-constructor that delegates to the Customer class' re-constructor:
+
+```
+public CustomerWithCity(int id) throws SQLException {
+	super(id);
+}
+```
+
+## Entity Composition
+
+A very simple join case is a complete composition of existing entities. This variant requires to derive a composite type from one entity type with members for the associated entity types. For a customer and its address, such a join may look like this:
+
+```
+public class CustomerWithAddress extends Customer {
+	Address address;
+
+	public Address getAddress() { return address; }
+	public void setAddress(Address a) { this.address = a; }
+
+    public static RecordDescriptor red =
+      new JoinRecordDescriptor(Customer.red, CUSTOMER_ALIAS)
+    	.join(Address.red, ADDRESS_ALIAS,
+    	    "address", CUSTOMER_ADDRESS_JOIN_CONDITION);
+    		
+    public RecordDescriptor getDescriptor() { return red; }
+}
+```
+
+The example above makes use of a join() method that gets passed the  descriptor for the contained entity and the name of the member. PriDE will not access the member directly but use the appropriate getter and setter method. Why using the setter? Well, here is the only exception to the rule that PriDE doesn't create entities. If a contained entity is null when being required to receive data from the database, PriDE will create an instance and associate it to the composite type by calling the appropriate setter. The contained entity type must provide a constructor without parameters or a constructor getting passed the containing entity.
+
+As mentioned earlier, you may change from inner to left outer join by calling leftJoin() rather than join() in the descriptor assembly. When iterating through the results, PriDE will set the member to null for every record which has no joined record associated and re-create the member when needed.
+
+## Ad-hoc Joins
+
+Sometimes a join is only needed to express query conditions which span multiple related tables but the results are entities of a type which is already present. For these cases, it is not desirable to create a new entity type just to provide a place for the join descriptor. As an alternative a record descriptor may be defined where ever an when ever and passed to special query methods provided by every hybrid entity and every adapter class.
+
+Let's come back to the example of retrieving customers living in London but without actually selecting any address data. The following code snippet demonstrates an example:
+
+```
+Customer c = new Customer();
+
+RecordDescriptor customerJoinedWithAddress =
+  new JoinRecordDescriptor(c.getDescriptor(), CUSTOMER_ALIAS)
+	.join(Address.TABLE, ADDRESS_ALIAS,
+	      CUSTOMER_ADDRESS_JOIN_CONDITION);
+
+WhereCondition onlyLondon =
+  new WhereCondition().and("city", "London");
+  
+c.joinQuery(customerJoinedWithAddress, onlyLondon);
+```
+
+The method joinQuery() accepts every record descriptor which is compatible with the entity's own descriptor in the sense that it maps to the same entity type.
+
+You have seen a lot of different ways now to express table joins in PriDE. Finally it is important to mentioned that the class JoinRecordDescriptor is not restricted in the number of tables to join. You may chain the calls of join() and leftJoin() as ofter as needed. So happy joining :-)
 
