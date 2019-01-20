@@ -1,6 +1,6 @@
 % PriDE 3 User Manual
-% Last update: 14.01.2019
-% For version 3.3.0
+% Last update: 20.01.2019
+% For version 3.3
 
 # About PriDE
 
