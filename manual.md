@@ -1,4 +1,6 @@
 % PriDE 3 User Manual
+% Last update: 14.01.2019
+% For version 3.3.0
 
 # About PriDE
 
@@ -123,13 +125,10 @@ public class Customer extends MappedObject {
       new RecordDescriptor(Customer.class, TABLE, null)
         .row(COL_ID, "getId", "setId")
         .row(COL_NAME, "getName", "setName")
-        .row(COL_FIRST_NAME, "getFirstName", "setFirstName");
+        .row(COL_FIRST_NAME, "getFirstName", "setFirstName")
+        .key(COL_ID);
 
     public RecordDescriptor getDescriptor() { return red; }
-
-    private static String[] keyFields =
-      new String[] { COL_ID };
-    public String[] getKeyFields() { return keyFields; }
 
     private long id;
     private String name;
@@ -149,7 +148,7 @@ public class Customer extends MappedObject {
     // Reconstructor
     public Customer(long id) throws SQLException {
         setId(id);
-        find();
+        findXE();
     }
 
     public Customer() {}
@@ -302,12 +301,10 @@ public class CustomerAdapter extends ObjectAdapter {
       new RecordDescriptor(CustomerEntity.class, TABLE, null)
         .row(COL_ID, "getId", "setId")
         .row(COL_NAME, "getName", "setName")
-        .row(COL_FIRST_NAME, "getFirstName", "setFirstName");
+        .row(COL_FIRST_NAME, "getFirstName", "setFirstName")
+        .key(COL_ID);
 
     public RecordDescriptor getDescriptor() { return red; }
-
-    private static String[] keyFields = new String[] { COL_ID };
-    public String[] getKeyFields() { return keyFields; }
 
     CustomerAdapter(CustomerEntity entity) { super(entity); }
 }
@@ -342,13 +339,16 @@ The examples for descriptors you have seen so far should already clarify most of
 
 - A reference to the descriptor of a base class. This is of interest when you build up an inheritance hierarchy  between entity classes as explained in chapter [Entity Inheritance](#entity-inheritance).
 
-- A table row to attribute mapping by adding calls of the row() method for every row of interest. The row() method returns the descriptor object, making up a fluent API. Every row/attribute mapping consists of
+- A table-row to attribute mapping by adding calls of the row() method for every row of interest. The row() method returns the descriptor object, making up a fluent API. Every row/attribute mapping consists of
 
   - The name of the database column (similar to table names: avoid using string-literals here)
   - The name of the getter method for the corresponding attribute in the entity class
   - The name of the setter method
 
   The methods are the ones which the adapter is supposed to use for transporting entity attributes to the database via JDBC and vice versa. The getter methods' return type implies which methods the adapter uses to access JDBC statements and result sets and how to translate the values to SQL syntax. Getters are mandatory whereas setters may be null in case of entity types that are never supposed to be written to the database. A typical example for this case are entity classes representing the result of SQL joins (see chapter [Joins](#joins)). 
+
+- An optional primary key definition by adding a call of the key() method with a list of column names making up the primary key. Alternatively you can use rowPK() instead of row() for the row mappings. 
+  
 
 The RecordDescriptor class has a few more constructors concerned with joins and [accessing multiple databases](#multiple-databases), but that's not important for now. The basic structure described above is what you work with most of the time.
 
@@ -362,9 +362,10 @@ A query means to select data with an unpredictable number of result. PriDE is de
 
 Examples for finding a record with PriDE were already part of the [quick start tutorial](#quick-start-tutorial) and the chapter about [entity, adapter, and descriptor](#entity-adapter-and-descriptor). But let's go into some details here for a deeper understanding. The important things to know:
 
-- No matter if you are working with hybrid objects or a separation of entity and adapter - PriDE doesn't creates entities for you but expects you to provide them.
-- Find operations work like a query-by-example. You provide an entity with all the primary key fields initialized and call the find() or findx() method without parameters. This is a method of the entity class itself when using hybrid entities, otherwise it is a method of the corresponding adapter class.
-- The result of the find operation is placed in the same entity which you provided the key fields by. The boolean return value of the find() method tells the caller if there was actually a matching record found. The findx() method reports a missing match by an exception which if of interest for situations where a missing result is a unexpected case. Think of typical navigation like retrieving the customer who placed an order. You usually don't expect the customer not being present in the database.
+- No matter if you are working with hybrid objects or a separation of entity and adapter - PriDE avoids creating entities by itself but expects you to provide them.
+- Find operations work like a query-by-example. You provide an entity with all the primary key fields initialized and call the find() or findXE() method without parameters. This is a method of the entity class itself when using hybrid entities, otherwise it is a method of the corresponding adapter class.
+- The result of the find operation is placed in the same entity which you provided the key fields by. The boolean return value of the find() method tells the caller if there was actually a matching record found. The findXE() method reports a missing match by an exception which is of interest for situations where a missing result is a unexpected case. Think of typical navigation like retrieving the customer who placed an order. You usually don't expect the customer not being present in the database.
+- The alternative method findRC() can be used to provide the resulting record in a *copy* of the original object. The copy is preferably created by cloning the original object in a clone() method with public visibility. This keeps the responsibility for object creation in the hands of the application code.  Otherwise the entity class must provide a copy constructor or a default constructor.
 
 When you are working with a generated hybrid entity, a find operation by primary key fields is a single line of code like that:
 
@@ -372,25 +373,14 @@ When you are working with a generated hybrid entity, a find operation by primary
 Customer customer = new Customer(1);
 ```
 
-PriDE's generator produces a so-called "re-constructor" if the referred database table has a primary key. The re-constructor expects a parameter for all attributes making up the primary key, initializes the entity accordingly and calls the entity's findx() method. I.e. if the retrieval by primary key fails, the re-constructor throws a pm.pride.FindException. The FindException is derived from java.sql.SQLException which must be handled anyway. 
+PriDE's generator produces a so-called "re-constructor" if the referred database table has a primary key. The re-constructor expects a parameter for all attributes making up the primary key, initializes the entity accordingly and calls the entity's findXE() method. I.e. if the retrieval by primary key fails, the re-constructor throws a pm.pride.FindException. The FindException is derived from java.sql.SQLException which must be handled anyway. 
 
 When you are working with separate adapter classes, the same operation takes two lines of code:
 
 ```
 CustomerEntity customer = new CustomerEntity(1);
-new CustomerAdapter(customer).findx();
+new CustomerAdapter(customer).findXE();
 ```
-
-Why isn't it simpler, e.g.
-
-```
-// ATTENTION: This is NOT default PriDE code!!
-CustomerEntity customer = new CustomerAdapter().findx(1);
-// This isn't too
-CustomerEntity customer = entityManager.findx(CustomerEntity.class, 1);
-```
-
-Well, all these variants imply that the adapter creates an entity, and this would violate a basic principle of PriDE. However, as mentioned in chapter [Entity, Adapter, and Descriptor](entity-adapter-and-descriptor), you are free to put those concepts on top of PriDE's basics. PriDE is really, really small and simple and extending it by your own convenience is simple too.
 
 ## Query
 
@@ -439,21 +429,22 @@ List<Customer> allCustomers = ri.toList(Customer.class, 100);
 Customer[] allCustomers = ri.toArray(Customer.class);
 ```
 
-Does PriDE create entities here? No, not really. The instances result from *cloning* the original entity object which the query was initiated from. I.e. the entity class itself is responsible for creating new instances by implementing the java.lang.Clonable interface and overriding the clone() method with public visibility. All entity types generated by PriDE have this function implemented based on Java's protected default implementation. This is a single-line implementation, so it's very simple to provide even if you are not using the generator.
+PriDE produces the entities in the lists and arrays in the same way as mentioned earlier for the findRC() method: by cloning the original entity with a public clone() method, by a copy constructor, getting passed the original entity as a parameter, or by a default constructor. All entity types generated by PriDE have a clone() method with public visibility implemented, based on Java's protected default implementation. This is a single-line implementation, so it's very simple to provide even if you are not using the generator.
 
-In general it is strongly recommended to define a base class for all entity types where all those standard capabilities are encapsulated. Not only a clone() implementation but also s reasonable default (reflection-based) toString() method and maybe even a set of standard attributes as explained in chapter [Entity Inheritance](#entity-inheritance).
+In general it is strongly recommended to define a base class for all entity types where all those standard capabilities are encapsulated. Not only a clone() implementation but also a reasonable default (reflection-based) toString() method and maybe even a set of standard attributes as explained in chapter [Entity Inheritance](#entity-inheritance).
 
 ### Streaming
 
 Another alternative form of result processing are the ResultIterator's stream methods. There are two different methods available.
 
-The method `stream(Class)` provides the results as a "real" stream with a clone of the original entity for every result. The resulting stream is suitable for any kind of Java stream operations but should be used with care when selecting a very large number of results combined with stream operations which have to keep all the results (e.g. sort and collect operations). This may cause serious memory problems.
+The method `stream(Class)` provides the results as a "real" stream with a new result instance for every result. The resulting stream is suitable for any kind of Java stream operations but should be used with care when selecting a very large number of results combined with stream operations which have to keep all the results (e.g. sort and collect operations). This may cause serious memory problems.
 
-The method `streamUncloned(Class)` provides all results in the original entity just as it is the case in direct iterating and processing demonstrated above. This kind of stream is suitable for any amount of results but can only be used for a limited set of stream operations. Especially operations that rely on object identity will  usually not work. Operations for direct processing like forEach() or count() won't cause any problems. The direct processing example from the beginning of the query section would look like this when using streams:
+The method `streamOE(Class)` provides all results in the original entity just as it is the case in direct iterating and processing demonstrated above. This kind of stream is suitable for any amount of results but can only be used for a limited set of stream operations. Especially operations that rely on object identity will  usually not work. Operations for direct processing like forEach() or count() won't cause any problems. The direct processing example from the beginning of the query section would look like this when using streams:
 
 ```
 Customer customer = new Customer();
-customer.queryAll().streamUncloned().forEach(c -> System.out.println(c));
+customer.queryAll().streamOE()
+    .forEach(c -> System.out.println(c));
 ```
 
 Examples for find and query code can by found in the class [QueryClient](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/query/QueryClient.java) in the package [query](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/query) of the PriDE manual source code repository on GitHub.
@@ -600,20 +591,22 @@ new CustomerAdater(customer).create();
 
 You can insert multiple records successively using the same entity (and adapter) by changing the entity's data and repeatedly call create(). This is OK for small amounts of inserts. If you have to insert thousands or hundreds of thousands records, you better work with the class pm.pride.PreparedInsert as explained in chapter [Mass Operations](#mass-operations). 
 
-If the addressed database table has auto-increment rows, you can specify these rows in the adapter class resp. the hybrid entity class by the method public `String[] getAutoFields()`. In this case you leave the appropriate attributes uninitialized, and after creation PriDE will set them according to the values generated by the database. Expressing auto-incrementation in a database table definition is always a bit vendor-specific as well as the supported generation features in general. Supposed you are still experimenting with the SQLite database from the [Quick Start Tutorial](#quick-start-tutorial), you could change the CUSTOMER table as follows to make the ID and auto-increment row:
+If the addressed database table has auto-increment rows, you can specify these rows in the descriptor by a call of method auto() with a list of column names. In this case you leave the appropriate attributes uninitialized, and after creation PriDE will set them according to the values generated by the database. Expressing auto-incrementation in a database table definition is always a bit vendor-specific as well as the supported generation features in general. Supposed you are still experimenting with the SQLite database from the [Quick Start Tutorial](#quick-start-tutorial), you could create a modification of the CUSTOMER table as follows to make the ID and auto-increment row:
 
 ```
-create table CUSTOMER (
+create table AUTOINCCUSTOMER (
     id integer not null primary key AUTOINCREMENT,
     name varchar(20),
     first_name varchar(30)
 );
 ```
 
-An appropriate hybrid entity class looks exactly like the one from the Quick Start Tutorial only extended by the following line:
+An appropriate hybrid entity class looks exactly like the one from the Quick Start Tutorial only extended by the following line at the end of the descriptor definition:
 
 ```
-public String[] getAutoFields() { return keyFields; }
+protected static final RecordDescriptor red =
+    //...
+    .auto(COL_ID);
 ```
 
 Based on that, the following loop creates 10 unique test customers in a row and prints out the auto-generated ID of each of them:
@@ -622,7 +615,7 @@ Based on that, the following loop creates 10 unique test customers in a row and 
 Customer customer = new Customer();
 for (int i = 0; i < 10; i++) {
 	customer.setName("Fingal-" + i);
-	customer.setFirstName("Paddy-" + i);
+	customer.setFirstName("Paddy");
 	customer.create();
 	System.out.println(customer.getId());
 }
@@ -659,7 +652,7 @@ As a result the code will either successfully create all 10 customers or non at 
 
 ## Update
 
-Updating a record is performed by calling the update() method of the adapter resp. the hybrid entity. All fields returned from the adapter's getKeyFields() method are used to identify the record and all other fields are updated. The code
+Updating a record is performed by calling the update() method of the adapter resp. the hybrid entity. All fields listed in the record descriptor's key() method call are used to identify the record, and all other fields are updated. The code
 
 ```
 Customer paddy = new Customer(57);
@@ -679,14 +672,13 @@ All update calls return the number of affected rows which should be 0 or 1 in ca
 
 Updating single rows by update() calls is OK for a limited number of operations per transaction. If you have to update thousands of records instead you should consider working with the class pm.pride.PreparedUpdate as explained in chapter [Mass Operations](#mass-operations).
 
-There are a few variants of the update() method available which allow to update multiple records at once. E.g. the method update(WhereCondition where, String... updatefields) can address the records of interest by a where condition. In these cases there are usually only particular fields requiring an update. The following example demonstrates how to change all first names from "Paddy" to "Patrick":
+There are a few variants of the update() method available which allow to update multiple records at once. E.g. the method `update(WhereCondition where, String... updatefields)` can address the records of interest by a where condition. In these cases there are usually only particular fields requiring an update. The following example demonstrates how to change all first names from "Paddy" to "Patrick":
 
 ```
 Customer customer = new Customer();
 customer.setFirstName("Patrick");
-int updates = customer.update(new WhereCondition(COL_FIRST_NAME, "Paddy"), COL_FIRST_NAME);
+customer.update(new WhereCondition(COL_FIRST_NAME, "Paddy"), COL_FIRST_NAME);
 customer.commit();
-System.out.println(updates + " row(s) updated");
 ```
 
 The code above makes clear that multi-record updates are not necessarily best to understand when they are expressed by entity operations. Have a look on the resulting update statement which is pretty clear to understand:
@@ -700,18 +692,17 @@ update CUSTOMER set first_name = 'Patrick' where ( first_name = 'Paddy' )
 ```
 Database database = DatabaseFactory.getDatabase();
 String operation = SQL.build(
-	"update @CUSTOMER set @FIRST_NAME = 'Patrick' where ( @FIRST_NAME = 'Paddy' ) ",
+	"update @CUSTOMER set @first_name = 'Patrick' where ( @first_name = 'Paddy' )",
 	TABLE, COL_FIRST_NAME);
-int updates = database.sqlUpdate(operation);
+database.sqlUpdate(operation);
 database.commit();
-System.out.println(updates + " row(s) updated");
 ```
 
 In this example, the SQL code is almost present in its native, well recognizable form but it is still based on the entity's table and column name constants. The DRY principle and dependency tracking is kept up properly. The commit is performed on the Database instance as explained in section [Transactions](#transactions) above.
 
 ## Delete
 
-To delete a record you have to call the delete() method of the adapter resp. the hybrid entity. All fields returned from the adapter's getKeyFields() method are used to identify the record All other fields are ignored, so whether they are initialized or not is irrelevant. The following code deletes the customer with ID 57:
+To delete a record you have to call the delete() method of the adapter resp. the hybrid entity. All fields listed in the record descriptor's key() method call are used to identify the record. All other fields are ignored, so whether they are initialized or not is irrelevant. The following code deletes the customer with ID 57:
 
 ```
 Customer c57 = new Customer();
@@ -722,7 +713,7 @@ paddy.commit();
 
 Note that the code above is based on a hybrid entity and does *not* use the re-constructor which would immediately initiate a find operation. Entities don't have to be loaded before deletion. Just like updates, every deletion returns the number of affected rows and it's up to you if you check the result.
 
-There is a deleteByExample() method available which allows to specify a different set of key attributes and usually deletes multiple records at once. More complicated multi-record deletions can be performed by the sqlUpdate() method of the Database class as introduced before in section [Update](#update).
+There is a deleteByExample() method available which allows to specify a different set of key attributes and usually deletes multiple records at once. More complicated multi-record deletions can be performed by the sqlUpdate() method of the Database class similar to the example section [Update](#update).
 
 # Entity Inheritance
 
@@ -746,12 +737,10 @@ abstract public class AbstractHybrid extends MappedObject implements Cloneable, 
 
     protected static final RecordDescriptor red =
       new RecordDescriptor(AbstractHybrid.class, null, null)
-            .row( COL_ID, "getId", "setId" );
+            .row( COL_ID, "getId", "setId" )
+            .key( COL_ID );
 
     public RecordDescriptor getDescriptor() { return red; }
-
-    private static String[] keyFields = new String[] { COL_ID };
-    public String[] getKeyFields() { return keyFields; }
 
     private int id;
 
@@ -761,7 +750,7 @@ abstract public class AbstractHybrid extends MappedObject implements Cloneable, 
     // Re-constructor
     public AbstractHybrid(int id) throws SQLException {
         setId(id);
-        findx();
+        findXE();
     }
 
     public AbstractHybrid() {}
@@ -793,12 +782,10 @@ public class DerivedCustomer extends inherit.AbstractHybrid {
     protected static final RecordDescriptor red =
       new RecordDescriptor(DerivedCustomer.class, TABLE, inherit.AbstractHybrid.red)
         .row(COL_NAME, "getName", "setName")
-        .row(COL_FIRST_NAME, "getFirstName", "setFirstName");
+        .row(COL_FIRST_NAME, "getFirstName", "setFirstName")
+        .key( COL_ID );
 
     public RecordDescriptor getDescriptor() { return red; }
-
-    private static String[] keyFields = new String[] { COL_ID };
-    public String[] getKeyFields() { return keyFields; }
 
     private String name;
     private String firstName;
@@ -824,7 +811,8 @@ Note the following details:
 - The class is not abstract and is derived from AbstractEntity
 - It contains only the attributes and corresponding getters and setters for the name and first name column.
 - The RecordDescriptor contains only mappings for these attributes and refers to the RecordDescriptor from the base class. The complete mapping for the CUSTOMER table is assembled from both descriptors.
-- The re-constructor doesn't call the findx() method but the super re-constructor from AbstractEntity instead which already does the find job. The base class will consider *all* the mappings because the derived class overrides the methods getDescriptor() and getKeyFields().
+- The primary key is re-defined, just in case the derived class adds additional key columns over the inherited ones (which is not the case here).
+- The re-constructor doesn't call the findXE() method but the super re-constructor from AbstractEntity instead which already does the find job. The base class will consider *all* the mappings because the derived class overrides the method getDescriptor().
 
 The resulting DerivedCustomer class behaves exactly like the Customer class from the [Quick Start Tutorial](#quick-start-tutorial). You can check that by running the [CustomerClient](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/quickstart/CustomerClient.java) from the quick start tutorial in parallel with the equivalent [DerivedCustomerClient](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/inherit/DerivedCustomerClient.java) from the package [inherit](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/inherit). Both have the same functionality and operate on the same table but work with the two different entity representations. This reveals an important fact about PriDE's concept how inheritance is mapped to SQL where you don't find such a concept. In terms of JPA, PriDE follows the [table-per-class strategy](https://en.wikibooks.org/wiki/Java_Persistence/Inheritance#Example_table_per_class_inheritance_tables_in_database). For every non-abstract class in the hierarchy there must exist a database table with columns for *all* mapped attributes of the class itself and *all* its super classes.
 
