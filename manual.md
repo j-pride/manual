@@ -33,8 +33,6 @@ Many code fragments in this manual refer to existing example code which is avail
 
 At January 2019, the PriDE 3 manual is work in progress. Beside the core chapters above there are chapters coming soon for the following aspects
 
-#### Optimistic Locking
-
 #### JSE, JEE, and ResourceAccessor
 
 #### Multiple Databases
@@ -717,7 +715,7 @@ There is a deleteByExample() method available which allows to specify a differen
 
 # Entity Inheritance
 
-From a technical point of view, entity inheritance is of interest to encapsulate basic design concepts in a base class which should apply to various entity types in the same way. The chapter [Find and Query](#find-and-query) already mentioned a few examples like a default public clone() method and a toString() method. Another typical reason is a stereotype set of table rows which should be present in each table like an auto-incremented technical ID, a creation time and a last modification time, or a lock counter for concurrency control by [optimistic locking](#optimistic-locking).
+From a technical point of view, entity inheritance is of interest to encapsulate basic design concepts in a base class which should apply to various entity types in the same way. The chapter [Find and Query](#find-and-query) already mentioned a few examples like a default public clone() method and a toString() method. Another typical reason is a stereotype set of table rows which should be present in each table like an auto-incremented technical ID, a creation time and a last modification time, or a lock counter for concurrency control by [optimistic locking](#optimistic-pessimistic-locking).
 
 As a simple example for inheritance, you can split up the Customer entity in a way that the ID is encapsulated in a separate entity class IdentifiedEntity which the Customer entity is derived from. This is based on the assumption that all entity classes should have a unique ID row which is a wide-spread concept.
 
@@ -1164,4 +1162,70 @@ c.joinQuery(customerJoinedWithAddress, onlyLondon);
 The method joinQuery() accepts every record descriptor which is compatible with the entity's own descriptor in the sense that it maps to the same entity type.
 
 You have seen a lot of different ways now to express table joins in PriDE. Finally it is important to mentioned that the class JoinRecordDescriptor is not restricted in the number of tables to join. You may chain the calls of join() and leftJoin() as ofter as needed. So happy joining :-)
+
+# Optimistic/Pessimistic Locking
+
+Locking for concurrency control is not directly addressed by PriDE but can be achieved by simple patterns. Usually, the object locking strategy of an application is a more general design decision and nothing you decide individually for every single table / entity. The examples in the section therefore demonstrate pattern which can be encapsulated in base classes and need to be implemented only once.
+
+This manual will not go into details about what kind of locking to prefer over the other for which kind of business requirements. There lots of general introductions on concurrency control on the Internet, e.g. on [Wikipedia](https://en.wikipedia.org/wiki/Concurrency_control).
+
+## Optimistic Locking
+
+[Optimistic Locking](https://en.wikipedia.org/wiki/Optimistic_concurrency_control) is a typical concept for the management of concurrent 
+update access from multiple applications on the same record in a database. An update of an existing record is only performed if it has not been modified by someone else since the current application has read the record of interest from the DB the last time. If it was modified, the caller is informed about a concurrent access conflict. The concept requires a version counter in the table. Every update operation increments this version counter and performs the actual update only if the entity's version counter value in memory is still the same as in the database.
+
+Optimistic locking only makes sense for single-record updates by primary key, so the essential aspect of the pattern is to override the update() method of an adapter class resp. a hybrid entity.
+
+The CUSTOMER table being used in almost all the manual examples, can be equipped for optimistic locking, by adding an appropriate counter:
+
+```
+create table LOCKABLECUSTOMER (
+    id integer not null primary key,
+    name varchar(20),
+    first_name varchar(30),
+	version integer not null
+);
+```
+
+The resulting entity class gets an appropriate attribute int version; and the entity's update() method must be overridden like that:
+
+```
+@Override
+public int update() throws SQLException {
+    version++;
+    int numRows = update(where().and(COL_VERSION, version-1)); 
+    if (numRows == 0) {
+        version--;
+        throw new SQLException("optimistic lock error");
+    }
+    return numRows; 
+}
+```
+
+The update() method without parameters is the update by primary primary key, and the override above works as follows:
+
+- The version number is incremented by 1 in the entity before actually updating the DB. So if the update goes through, the version number will also be incremented in the database.
+- The where() call without parameters assembles a WhereCondition from the entity's primary key attributes.
+- The appended and() call extends the condition by a constraint that - beside the primary key - also the version number in the DB must match the former value.
+- The method then calls an update() method with the extended WhereCondition and checks the number of affected rows.
+- If the version number was already incremented in the database, the number of affected rows is 0 and the method reports an error. The version number is restored, just in case the application can handle the exception and works on with the entity. If your application is actually this robust, you should consider defining your own optimistic lock exception type to make this case easy to distinguish from other DB problems.
+
+The code may be well encapsulated in a base class for all entity types which require optimistic locking. You can find an appropriate [base class](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/locks/OptimisticObject.java) and derived [OptimisticCustomer](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/locks/OptimisticCustomer.java) class in package [locks](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/locks) of the PriDE manual source code repository on GitHub.
+
+## Pessimistic Locking
+
+In SQL databases, pessimistic locking is usually achieved by selecting-for-update operations. I.e. instead of overriding the update() method, pessimistic locking requires to override the find() method without parameters. Like the update() method without parameters, find() addresses the entity's primary key and therefore is a single-record operation. As a difference to optimistric locking, it does not require any additional columns to organize the locking, However, it requires the database to actually support select-for-update which is sometimes not the case for server-less databases. SQLite e.g. doesn't support select-for-update as any manipulative DB operates always locks the whole database.
+
+The following override will do the job:
+
+```
+@Override
+public boolean find() throws SQLException {
+    return find(where().forUpdate());
+}
+```
+
+As you already from the optimistic locking example, the method where() assembles a selection criterion based on the entity's primary key attributes. The appended call of forUpdate() adds the required "... FOR UPDATE" to the constraint which then is used to call the find() method accepting a WhereCondition.
+
+Keep in mind that there are a few more find() methods which you may have to override. Method findXE() is based on find(), so it doesn't need an extra override, but findRC() e.g. has its own implementation. The overrides can be well encapsulated in a base class for all entity types which require pessimistic locking. You can find an appropriate [base class](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/locks/PessimisticObject.java) and derived [PessimisticCustomer](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/locks/PessimisticCustomer.java) class in package [locks](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/locks) of the PriDE manual source code repository on GitHub.
 
