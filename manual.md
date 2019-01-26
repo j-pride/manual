@@ -33,8 +33,6 @@ Many code fragments in this manual refer to existing example code which is avail
 
 At January 2019, the PriDE 3 manual is work in progress. Beside the core chapters above there are chapters coming soon for the following aspects
 
-#### JSE, JEE, and ResourceAccessor
-
 #### Multiple Databases
 
 #### Mass Operations
@@ -1228,4 +1226,73 @@ public boolean find() throws SQLException {
 As you already from the optimistic locking example, the method where() assembles a selection criterion based on the entity's primary key attributes. The appended call of forUpdate() adds the required "... FOR UPDATE" to the constraint which then is used to call the find() method accepting a WhereCondition.
 
 Keep in mind that there are a few more find() methods which you may have to override. Method findXE() is based on find(), so it doesn't need an extra override, but findRC() e.g. has its own implementation. The overrides can be well encapsulated in a base class for all entity types which require pessimistic locking. You can find an appropriate [base class](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/locks/PessimisticObject.java) and derived [PessimisticCustomer](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/locks/PessimisticCustomer.java) class in package [locks](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/locks) of the PriDE manual source code repository on GitHub.
+
+# JSE, JEE, and ResourceAccessor
+
+Resources accessors are the link between PriDE and JDBC, Java's foundation API for accessing SQL databases. Its main job is to provide JDBC connections for the database that PriDE is supposed to operate on. The accessor must be instantiated before any persistence operation is performed in the code. So usually accessor instanciation takes place somewhere in the application's bootstrap. In an enterprise application which properly encapsulates database access in repository components resp. data access objects, the accessor may also be lazy-initialized in these components' lifecycle methods.
+
+PriDE provides two standard implementations, one for JSE and one for JEE environments, which are both derived from the base class `pm.pride.AbstractResourceAccessor`.
+
+## JSE
+
+The class `pm.pride.ResourceAccessorJSE` is used in all examples throughout this manual. It is based on JDBC's driver manager interface to establish a connection to a database which requires the following information:
+
+- A JDBC driver class, provided by a third-party library on the class path
+- Usually the name and password of a database user
+- A database URL
+
+Driver class and user/password are passed to the constructor of the resource accessor. As there are a few more optional configuration parameters available, the parameters are passed as a java.util.Properties object to keep the constructor signature simple. How the application assembles these properties is up to you. In the [quick start tutorial](#quick-start-tutorial) you already learned about two possible variants - system properties and property files.
+
+The database URL is not part of the resource accessor but is used to register the particular database and its resource accessor in a *database context* in PriDE's database factory. So in fact you may access multiple databases of the same type by one resource accessor as you will see in chapter [Multiple Databases](#multiple-databases). The following code snippet demonstrates a minimal bootstrap for a JSE application with a single SQLite database.
+
+```
+Properties props = new Properties();
+props.setProperty(
+    ResourceAccessor.Config.DBTYPE, "sqlite");
+props.setProperty(
+    ResourceAccessor.Config.DRIVER, "org.sqlite.JDBC");
+
+ResourceAccessor re = new ResourceAccessorJSE(props);
+
+DatabaseFactory.setDatabaseName(
+	"jdbc:sqlite:pride.examples.db");
+
+DatabaseFactory.setResourceAccessor(re);
+```
+
+Databases with default support in PriDE are listed in the Interface ResourceAccessor.DBType, so instead of the string literal "sqlite" you should rather use ResourceAccessor.DBType.SQLITE. There are some database types listet which PriDE is known to work on but which are not continuously tested. The permanently tested ones are visible on PriDE's continuous integration page at [Travis CI](https://travis-ci.org/j-pride/pride.pm).
+
+## JEE
+
+The class `pm.pride.ResourceAccessorJEE` is suitable for enterprise environments like JEE application servers. It is based on a JNDI lookup of data sources. The database name is not used to specify a database URL but its JNDI lookup name. Driver class, user name, and password are not required, so the minimal bootstrap looks like that:
+
+```
+Properties props = new Properties();
+props.setProperty(
+    ResourceAccessor.Config.DBTYPE,
+    ResourceAccessor.DBType.ORACLE);
+ResourceAccessor re = new ResourceAccessorJEE(props);
+DatabaseFactory.setDatabaseName("java:global/myapp/mydb");
+DatabaseFactory.setResourceAccessor(re);
+```
+
+You may consider placing the database type into the JNDI context as well to make the application's bootstrap code completely independent from that issue. Maybe you want to use an HSQL database in test environments which can be killed and re-initialized within seconds while the productive environment is based on an Oracle database.
+
+## Accessor Configuration 
+
+Beside the basic things like database name and user name there are some more configurations parameters available for the pre-defined resource accessors classes provided with the PriDE distribution. Most of them are concerned with two other aspects which resource accessors are also responsible for: logging and SQL syntax. Every resource accessor has to implement the interface `pm.pride.SQL.Formatter` which is used by PriDE to produce well-formed SQL value and operator representations. E.g. the method formatValue() called with a string argument is supposed to put single quotes around the string and escape any single quotes and other SQL key characters within the string. If you need to implement your own special resource accessor for some reason, you should usually derive it from class AbstractResourceAccessor which provides reasonable default functionality for these formating issues.
+
+The configuration parameters available for the default implementations are listed in interface ResourceAccessor.Config. The details of all options are documented by their Javadocs. Here is only an excerpt of options which help to understand general aspects:
+
+- `pride.logfile = sql.log`
+
+  If a log file is configured, PriDE will log every database operation to the file. In the [quick start tutorial](#quick-start-tutorial) you already learned how the log entries look like. The log file will be re-written with every application start and after exceeding the maximum length of 100 kilobyte. You may change the maximum file size by parameter `pride.logmax`. If you prefer a different logging mechanism. e.g. logging by [log4j](https://logging.apache.org/log4j), you have to provide a record descriptor with an alternative implementation of the methods sqlLog() and sqlLogError().
+  
+- `pride.bindvars = on|off`
+
+  Specifies if PriDE is supposed to use bind variables by default. Without this configuration parameter, PriDE talks plain SQL if not explicitly coded differently by the application. Prepared operations (see chapter [Mass Operations](#mass-operations)) always use bind variables, and the WhereCondition class (see chapter [Find and Query](#find-and-query)) provides the method bindvarsOn() to overrule the default. If you are working with binary large objects attributes (BLOBs), you must switch bind variables on as there is no plain SQL representation for these attributes.
+  
+- `pride.systime = 1000230`
+
+  Specifies a UNIX milliseconds time value which is used to represent the current database server time. Where ever the application uses this value in a database operation it is replaced by an appropriate server expression to address the current time. E.g. in Oracle databases this is SYSDATE, in SQLite it is a call of the strftime() server function. The application can access this special value for the current database by calling SQL.systime(). The default value is January 1. of year 0 which should hopefully not clash with any "real" date value which the application's business logic works with. So usually you don't have to change the value :-)  
 
