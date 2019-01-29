@@ -33,8 +33,6 @@ Many code fragments in this manual refer to existing example code which is avail
 
 At January 2019, the PriDE 3 manual is work in progress. Beside the core chapters above there are chapters coming soon for the following aspects
 
-#### Multiple Databases
-
 #### Mass Operations
 
 #### Calling Stored Procedures
@@ -1295,4 +1293,52 @@ The configuration parameters available for the default implementations are liste
 - `pride.systime = 1000230`
 
   Specifies a UNIX milliseconds time value which is used to represent the current database server time. Where ever the application uses this value in a database operation it is replaced by an appropriate server expression to address the current time. E.g. in Oracle databases this is SYSDATE, in SQLite it is a call of the strftime() server function. The application can access this special value for the current database by calling SQL.systime(). The default value is January 1. of year 0 which should hopefully not clash with any "real" date value which the application's business logic works with. So usually you don't have to change the value :-)  
+
+# Multiple Databases
+
+You may access multiple databases in an application, using PriDE's concept of a *database context*. As long as you don't explicitly address particular contexts, you are implicitly working with a default context. If you recall the chapter about [resource accessors](#jse-jee-and-resourceaccessor) and the the application bootstrap, there appeared two calls which initialized the default context:
+
+```
+DatabaseFactory.setDatabaseName(...)
+DatabaseFactory.setResourceAccessor(...);
+```
+
+If you want to work with multiple databases, you have to initialize multiple contexts in the bootstrap in the same manner. The contexts are addressed by name and you perform a context switch by calling the DatabaseFactory's static method setContext(). Switching to a context which doesn't yet exist, causes the context to be created.
+
+```
+// Initialize the default database context
+DatabaseFactory.setDatabaseName(...)
+DatabaseFactory.setResourceAccessor(...);
+
+// Create a new context by switching
+DatabaseFactory.setContext("other-db");
+
+// Initialize the new context
+DatabaseFactory.setDatabaseName(...)
+DatabaseFactory.setResourceAccessor(...);
+
+// Switch back to the default context
+DatabaseFactory.setContext(DatabaseFactory.DEFAULT_CONTEXT);
+```
+
+Alternatively you can add a context without switching back and forth by calling method addContext().
+
+There are two ways how to work with these contexts:
+
+- By explicit context switching as demonstrated above which will cause subsequent database operations to operate on the current context. As context switching is a global configuration change, this is only suitable for applications without concurrent access by multiple users, e.g. fat clients or batch applications. You should never use that in a server application.
+
+- By associating entity types to different contexts. This is achieved by a call of the context() method when constructing the appropriate RecordDescriptor
+
+  ```
+  new RecordDescriptor(...)
+      .context("other-db");
+  ```
+
+  All database operations that are based on that record descriptor will operate on the associated context. A global context switch is not required for that, so this concept will also work in server applications. Usually this is also the more convenient variant. However, if you make use of this, make sure that your application either doesn't call context-dependent static methods of the DatabaseFactory class or that it is using them safely. Earlier chapters of this manual introduced the method call DatabaseFactory.getDatabase() to get access to a lower operation level. This call returns a Database object form the *current context* which of course may be the wrong one if you don't switch it. In a multi-database server application you should rather call the alternative getDatabase(String) method which gets passed a context name.
+
+## Multi-Database Transactions
+
+Although SQL database usually provide very good transaction safety for their own, the transaction management across *multiple* independent databases is a separate challenge. If your are working in a JEE environment, the application server should provide a safe transaction coordination for the involved databases, e.g. a [2 phase commit protocol](https://en.wikipedia.org/wiki/Two-phase_commit_protocol). In a JSE environment you either have to integration a transaction manager like [Atomikos](https://www.atomikos.com/) or follow design patterns that minimize the risk of data inconsistencies.
+
+A recommended design pattern is the so-called *best efforts 1 phase commit*. If you have to perform modifications in multiple databases within one transaction then do the actual work in all involved databases first and at the very end, run the commit calls for all databases. I.e. inconsistencies can only occur if any of the commit calls should fail which is a very rare situation. The pattern is suitable not only for databases but can be applied to any combined usage of transactional resources. In that case you should start the sequence of commit calls with the resource with the highest failure risk. E.g. you may assume that committing a JMS queue or a Kafka topic has a higher failure risk than committing a transaction on an Oracle database server based on decades of experience and hardening.
 
