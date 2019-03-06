@@ -1,6 +1,6 @@
 % PriDE 3 User Manual
-% Last update: 20.01.2019
-% For version 3.3
+% Last update: 06.03.2019
+% For version 3.4
 
 # About PriDE
 
@@ -31,9 +31,9 @@ Many code fragments in this manual refer to existing example code which is avail
 - clone the repository (`git clone https://github.com/j-pride/manual-example-code.git`) and
 - build the project using Maven (`mvn clean compile`)
 
-At January 2019, the PriDE 3 manual is work in progress. Beside the core chapters above there are chapters coming soon for the following aspects
+At February 2019, the PriDE 3 manual is work in progress. Beside the core chapters above there are chapters coming soon for the following aspects
 
-#### Mass Operations
+#### Attribute Type Mapping
 
 #### Calling Stored Procedures
 
@@ -207,7 +207,7 @@ Play around with the client and then check the working directory. You will find 
 
 Actually PriDE is working with plain SQL by default rather than with so-called "bind variables". So what you see in the log file is exactly what PriDE executes against the database resp. its JDBC driver. If you like to change to bind variables as default, you can add the configuration property `-Dpride.bindvars=on`. Restart the CustomerClient with this system property set, run some commands and check the log file again. You still see plain SQL but the values of insert and select statements are now preceded by a ? indicating that the value was passed to the database via a bind variable. You can still copy every command from the log to an SQL shell - you only have to remove its question marks before running it interactively. You won't find many persistence managers with a comfortable SQL logging like that.
 
-A meaningful usage of bind variables becomes a relevant issue for heavily accessed databases and will be discussed in the [mass operation chapter](#mass-operations).
+A meaningful usage of bind variables becomes a relevant issue for heavily accessed databases and will be discussed in the [prepared operations chapter](#prepared-operations).
 
 #### That's it!
 The tutorial example already introduces the most important basic elements of PriDE. To understand what's going on behind the scenes of the 5 steps above, you will find all aspects explained in detail in the manual.
@@ -523,9 +523,9 @@ Finally the WhereCondition can be extended by ordering and grouping clauses. E.g
 new WhereCondition().orderBy(COL_NAME).orderBy(COL_FIRST_NAME)
 ```
 
-Especially when you select data *in order*, the ResultIterator provides the additional methods spoolToList() and spoolToArray() to read results in chunks. This will be explained in more details in chapter [Mass Operations](#mass-operations).
+Especially when you select data *in order*, the ResultIterator provides the additional methods spoolToList() and spoolToArray() to read results in chunks. This allows to run multiple co-ordinated selects in parallel as an alternative to joins when selecting along 1:N relationships. Joins cause a duplication of transfer data in such a case which may cause mentionable latency in very large selections.
 
-And finally finally the methods bindvars...() in the WhereCondition class give you fine-grained control over which parts of the expression should use bind variables and which ones should be plain SQL. Bind variables or not becomes a relevant issue for databases on heavy duty and therefore are also discussed in the mass operation chapter. 
+And finally finally the methods bindvars...() in the WhereCondition class give you fine-grained control over which parts of the expression should use bind variables and which ones should be plain SQL. Bind variables become a relevant issue for databases on heavy duty and therefore are also discussed in the [prepared operations chapter](#prepared-operations).
 
 ### Arbitrary Criteria
 
@@ -553,7 +553,7 @@ String byMickeyMouse = SQL.build(
 ResultIterator ri = new Customer().query(byMickeyMouse, 1000);
 ```
 
-Using bind variables is the easiest way for you as a developer to overcome the problem of value formating, which may become a bit tricky for complex data types like dates and timestamps. However, this should of course not be the main reason to use bind variables. See chapter [Mass Operations](#mass-operations) for purposeful usage. As long as you are working with small databases, it is OK just to utilize the formatting side effect.
+Using bind variables is the easiest way for you as a developer to overcome the problem of value formating, which may become a bit tricky for complex data types like dates and timestamps. However, this should of course not be the main reason to use bind variables. See chapter [Prepared Operations](#prepared-operations) for purposeful usage. As long as you are working with small databases, it is OK just to utilize the formatting side effect.
 
 If you want to learn more about the expression builder right now, read the chapter [SQL Expression Builder](#sql-expression-builder).
 
@@ -583,7 +583,7 @@ customer.setFirstnae("Paddy");
 new CustomerAdater(customer).create();
 ```
 
-You can insert multiple records successively using the same entity (and adapter) by changing the entity's data and repeatedly call create(). This is OK for small amounts of inserts. If you have to insert thousands or hundreds of thousands records, you better work with the class pm.pride.PreparedInsert as explained in chapter [Mass Operations](#mass-operations). 
+You can insert multiple records successively using the same entity (and adapter) by changing the entity's data and repeatedly call create(). This is OK for small amounts of inserts. If you have to insert thousands or hundreds of thousands records, you better work with the class pm.pride.PreparedInsert as explained in chapter [Prepared Operations](#prepared-operations). 
 
 If the addressed database table has auto-increment rows, you can specify these rows in the descriptor by a call of method auto() with a list of column names. In this case you leave the appropriate attributes uninitialized, and after creation PriDE will set them according to the values generated by the database. Expressing auto-incrementation in a database table definition is always a bit vendor-specific as well as the supported generation features in general. Supposed you are still experimenting with the SQLite database from the [Quick Start Tutorial](#quick-start-tutorial), you could create a modification of the CUSTOMER table as follows to make the ID and auto-increment row:
 
@@ -664,7 +664,7 @@ update CUSTOMER set name = 'Fingal',first_name = 'Paddy' where id = 57
 
 All update calls return the number of affected rows which should be 0 or 1 in case of an update by primary key. It's up to you if you check the result. PriDE has no detection which attributes actually changed since an entity has been loaded, so it simply updates *all* attributes which are not part of the primary key. As PriDE has no instance and change management, updates always have to be explicitly performed by the application. If you are familiar with JPA, you may recognize that the concepts are very different concerning this aspect. The chapter [PriDE Design Principles](#pride-design-principles) explains why the much simpler approach of PriDE is not a loss.
 
-Updating single rows by update() calls is OK for a limited number of operations per transaction. If you have to update thousands of records instead you should consider working with the class pm.pride.PreparedUpdate as explained in chapter [Mass Operations](#mass-operations).
+Updating single rows by update() calls is OK for a limited number of operations per transaction. If you have to update thousands of records instead you should consider working with the class pm.pride.PreparedUpdate as explained in chapter [Prepared Operations](#prepared-operations).
 
 There are a few variants of the update() method available which allow to update multiple records at once. E.g. the method `update(WhereCondition where, String... updatefields)` can address the records of interest by a where condition. In these cases there are usually only particular fields requiring an update. The following example demonstrates how to change all first names from "Paddy" to "Patrick":
 
@@ -681,7 +681,7 @@ The code above makes clear that multi-record updates are not necessarily best to
 update CUSTOMER set first_name = 'Patrick' where ( first_name = 'Paddy' )
 ```
 
- If the entity layer is not appropriate, you have a lower level at hand using the class pm.pride.Database. You get access to the current database by the call `DatabaseFactory.getDatebase()`. Here is how the renaming update looks like with a combination of the Database class and the SQLExpressionBuilder:
+If the entity layer is not appropriate, you have a lower level at hand using the class pm.pride.Database. You get access to the current database by the call `DatabaseFactory.getDatebase()`. Here is how the renaming update looks like with a combination of the Database class and the SQLExpressionBuilder:
 
 ```
 Database database = DatabaseFactory.getDatabase();
@@ -1288,7 +1288,7 @@ The configuration parameters available for the default implementations are liste
   
 - `pride.bindvars = on|off`
 
-  Specifies if PriDE is supposed to use bind variables by default. Without this configuration parameter, PriDE talks plain SQL if not explicitly coded differently by the application. Prepared operations (see chapter [Mass Operations](#mass-operations)) always use bind variables, and the WhereCondition class (see chapter [Find and Query](#find-and-query)) provides the method bindvarsOn() to overrule the default. If you are working with binary large objects attributes (BLOBs), you must switch bind variables on as there is no plain SQL representation for these attributes.
+  Specifies if PriDE is supposed to use bind variables by default. Without this configuration parameter, PriDE talks plain SQL if not explicitly coded differently by the application. [Prepared operations](#prepared-operations) always use bind variables, and the WhereCondition class (see chapter [Find and Query](#find-and-query)) provides the method bindvarsOn() to overrule the default. If you are working with binary large objects attributes (BLOBs), you must switch bind variables on as there is no plain SQL representation for these attributes.
   
 - `pride.systime = 1000230`
 
@@ -1341,4 +1341,76 @@ There are two ways how to work with these contexts:
 Although SQL database usually provide very good transaction safety for their own, the transaction management across *multiple* independent databases is a separate challenge. If your are working in a JEE environment, the application server should provide a safe transaction coordination for the involved databases, e.g. a [2 phase commit protocol](https://en.wikipedia.org/wiki/Two-phase_commit_protocol). In a JSE environment you either have to integration a transaction manager like [Atomikos](https://www.atomikos.com/) or follow design patterns that minimize the risk of data inconsistencies.
 
 A recommended design pattern is the so-called *best efforts 1 phase commit*. If you have to perform modifications in multiple databases within one transaction then do the actual work in all involved databases first and at the very end, run the commit calls for all databases. I.e. inconsistencies can only occur if any of the commit calls should fail which is a very rare situation. The pattern is suitable not only for databases but can be applied to any combined usage of transactional resources. In that case you should start the sequence of commit calls with the resource with the highest failure risk. E.g. you may assume that committing a JMS queue or a Kafka topic has a higher failure risk than committing a transaction on an Oracle database server based on decades of experience and hardening.
+
+# Prepared Operations
+
+PriDE is designed to keep as much persistence logic as possible in Java code instead of writing stored procedures that reside in the database. This has several reasons:
+
+- Stored procedures must be written in a highly vendor-specific language like Oracle's PL/SQL, so the code is not compatible between different database systems. On the other hand, Java and PriDE-based persistence logic is widely compatible, allowing things like unit testing on a light-weight HSQL while working with an Oracle DB in production.
+- As stored procedures are written in a different language that forces you to violate the DRY principle which is strongly emphasized by PriDE as one of the most valuable design principles for long-term code maintainability. E.g the stored procedure's code can't refer to constants defined in Java. They will often break at runtime not at compile time, and refactoring becomes a fragile job.
+- You need an additional development environment and appropriate knowledge which can make things very complicated.
+
+Although there may still be good reasons to write stored procedures, you should at least know about PriDE's capabilities to efficiently run database mass operations within Java. Some of the mass operation features have already been mentioned in earlier chapters:
+
+- Query results are by default provided by ResultIterators, allowing to iterate through large amounts of results using a single entity. You can process millions of records without being afraid of memory shortage. See chapter [Find and Query](#find-and-query) for details.
+- Methods spoolToArray() and spoolToList() of class ResultIterator allow to run multiple co-ordinates selects as an alternative to Joins when accessing data along 1:N relationships. This allows to minimize the actual data being transfered from the database to your application.
+- Updates and deletes may get passed key field lists and WhereConditions to address multiple records with a single operation. See chapter [Insert, Update, and Delete](#insert-update-and-delete) for details.
+- The class pm.pride.Database provides low-level API functions to assemble multi-record operations of arbitrary SQL structure. An example based on method sqlUpdate() can be found in chapter [Insert, Update, and Delete](#insert-update-and-delete). Additional methods are sqlQuery() and sqlExecute().
+
+Prepared operations are a thin convenience layer combining JDBC's concept of prepared statements with PriDE's concept of O/R mapping based on record descriptors. PriDE provides the following prepared operation types:
+
+- pm.pride.PreparedInsert
+- pm.pride.PreparedUpdate
+- pm.pride.PreparedSelect
+
+When you turn on the usage of bind variables (see configuration parameter pride.bindvars in the [quick start tutorial](#quick-start-tutorial)) PriDE will also use these classes internally to run database operations based on prepared statements. However, using the classes explicitly in your application code allows to use the same prepared statements for many operations without reinitializing it with every call. You can also use them in batch mode which allows to run thousands of operations per second.
+
+Consider the CUSTOMER table and the appropriate Customer entity class which is used all over this manual. If you need to insert thousands of customers in one turn, you should use the PreparedInsert class in a way like that:
+
+```
+Customer c = new Customer();
+PreparedInsert insert = new PreparedInsert(c.getDescriptor());
+for (int i = 0; i < 100000; i++) {
+    c.setId(i);
+    c.setFirstName("Paddy-" + i);
+    c.setName("Fingal");
+    insert.execute(c);
+}
+c.commit();
+```
+
+Running this example on an SQLite databases takes less than a second to insert 100.000 customers. On a local Oracle XE with a usual 4 core laptop it takes about 30 seconds, i.e. more than 3.000 inserts per second. But you can even speed up Oracle to SQLite's performance by using batched operations instead:
+
+```
+Customer c = new Customer();
+PreparedInsert insert = new PreparedInsert(c.getDescriptor());
+for (int i = 0; i < 100000; i++) {
+    c.setId(i);
+    c.setFirstName("Paddy-" + i);
+    c.setName("Fingal");
+    insert.addBatch(c);
+}
+insert.executeBatch();
+c.commit();
+```
+
+With 100 thousand inserts per seconds, PriDE is a lot faster than all other O/R mapping tools for Java, even if you consider maximum tuning options. And you may do a lot of things with this performance before you have to consider using stored procedures. A key aspect for high performance is the network latency between the Java application and the database server. Mass operations are usually performed by batch programs rather than interactive clients or web sites. You should therefore keep the network distance between the Java batch programs and the database as short as possible. Best performance is achieved by co-locating both on the same server machine using the so-called loopback device and localhost addresses.
+
+When using prepared operations, you should keep in mind that they have an open JDBC prepared statement inside. So that you must not forget to close the operations when the job is done. Prepared operations implement the AutoCloseable interface, so you may use try-with-resources:
+
+```
+Customer c = new Customer();
+try (PreparedInsert insert = new PreparedInsert(c.getDescriptor())) {
+    //... do the job ...    
+}
+c.commit();
+```
+
+An examples for a mass insertion can by found in the class [MassInsertClient](https://github.com/j-pride/manual-example-code/blob/master/src/main/java/mass/MassInsertClient.java) in the package [mass](https://github.com/j-pride/manual-example-code/tree/master/src/main/java/mass) of the PriDE manual source code repository on GitHub. 
+
+As you can see from the example, you don't necessarily need a new entity for each call of execute() or addBatch(). So as you already know from the ResultIterator class the whole iteration may operate on a single entity. Tying both sides together, you can design fast and memory efficient ETL procedures in Java by reading records from a result iterator into a single entity, transforming it in place, and directly passing the result to a prepared operation.
+
+The class PreparedUpdate allows to run mass updates instead of insertions. By default, the class uses the definitions from the record descriptor passed in the constructor to tell which fields make up the key to identify a record and which other fields need to by updated. However, the class provides a few alternative constructors to define key fields and update fields separately.
+
+The class PreparedSelect is probably not useful for application code. It is used internally by PriDE.
 
