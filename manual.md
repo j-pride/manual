@@ -31,9 +31,7 @@ Many code fragments in this manual refer to existing example code which is avail
 - clone the repository (`git clone https://github.com/j-pride/manual-example-code.git`) and
 - build the project using Maven (`mvn clean compile`)
 
-At February 2019, the PriDE 3 manual is work in progress. Beside the core chapters above there are chapters coming soon for the following aspects
-
-#### Attribute Type Mapping
+At March 2019, the PriDE 3 manual is still work in progress. Beside the core chapters above there are chapters coming soon for the following aspects
 
 #### Calling Stored Procedures
 
@@ -345,6 +343,84 @@ The examples for descriptors you have seen so far should already clarify most of
   
 
 The RecordDescriptor class has a few more constructors concerned with joins and [accessing multiple databases](#multiple-databases), but that's not important for now. The basic structure described above is what you work with most of the time.
+
+## Attribute Type Mapping
+
+The following table illustrates the mapping of Java object attribute types to SQL database field types as they are supported by PriDE. The row *'JDBC type'* determines the type being used for the specified attribute type to access results from a JDBC ResultSet or to pass inputs to a JDBC PreparedStatement. The *'SQL type'* specifies the actual SQL row types, the attributes can usually be mapped to. Not all SQL databases support all the mentioned type identifiers and it may also depend on the JDBC driver's capabilities which mappings are supported. Primitive attribute types should of course only be used, if the corresponding row must not be NULL. Otherwise an exception will be thrown at runtime when attempting to process NULL values.
+
+| **Java attribute type** | **JDBC type** | **SQL type**                       |
+| ----------------------- | ---------------------- | ---------------------------------- |
+| String                  | String                 | VARCHAR, VARCHAR2, NVARCHAR2, CHAR |
+|java.util.Date|java.sql.Date|DATE, DATETIME, TIMESTAMP, TIME|
+|java.sql.Date|java.sql.Date|DATE, DATETIME, TIMESTAMP, TIME|
+|java.sql.Timestamp|java.sql.Timestamp|DATETIME, TIMESTAMP, TIME|
+|int / Integer|Integer|INTEGER|
+|float / Float|Float|DECIMAL, REAL|
+|double / Double|Double|DECIMAL, REAL|
+|Any enum|String|VARCHAR, VARCHAR2, NVARCHAR2, CHAR|
+|boolean / Boolean|Boolean|BOOLEAN, INTEGER, SMALLINT, TINYINT, CHAR|
+|BigDecimal|BigDecimal|DECIMAL, NUMBER|
+|long / Long|Long|INTEGER, DECIMAL, NUMBER, BIGINT|
+|short / Short|Short|INTEGER, SMALLINT, TINYINT, DECIMAL|
+|byte / Byte|Byte|TINYINT|
+|byte[]|byte[]|BLOB, LONGVARBINARY, VARBINARY|
+|java.sql.Blob|java.sql.Blob|BLOB, LONGVARBINARY, VARBINARY|
+|java.sql.Clob|java.sql.Clob|CLOB, LONGVARCHAR|
+|java.sql.SQLXML / String|java.sql.SQLXML|java.sql.SQLXML|
+
+Clobs and Blobs can only be used through PreparedStatements, i.e. you either have to access the entities with Clob / Blob attributes with PriDE's [prepared operations](#prepared-operations) or you configure PriDE to use bind variables by default (see [quick start tutorial](#quick-start-tutorial)).
+
+The precision of dates and time stamps in the database vary significantly between different database vendors. E.g. although date rows were originally intended to represent dates without time portions in SQL databases, Oracle allows seconds precision instead and so does PriDE for Oracle. When using PriDE with plain SQL, dates and timestamps are rendered by appropriate database-specific formating functions like `to_date` or `to_timestamp` in Oracle, preserving the same precision as it applies to prepared statements.
+
+The interface `pm.pride.ResourceAccessor` provides the constant *SYSTIME_DEFAULT*. In update and insert operations this values will be translated to an expression which addresses the current database server time like *CURRENT_TIMESTAMP* in MySQL or *SYSDATE* in Oracle. This translation is only applied in plain SQL.
+
+You can tell PriDE to map a java.util.Date attribute to an SQL time stamp by providing the JDBC type in the row definition of the record descriptor as an additional parameter like that:
+
+```
+.row(<columnname>, <getter>, <setter>, java.sql.Timestamp.class)
+```
+
+There are a few more type conversions which can be expressed that way. E.g. Enums  can be represented by their ordinals in the database by providing `java.lang.Integer.class` as additional parameter for the mapping of the corresponding attributes.
+
+The general pattern for arbitrary type conversion is to provide appropriate additional getter/setter pairs which encapsulate the conversion. To make clear, that these getters / setters are for internal use only, it is common practice to give the method names a leading underscore. Assume you have an enumeration type for coins with their value in cent like that:
+
+```
+public enum Coin {
+	FIVE_CENT(5), FIFTY_CENT(50), ONE_EURO(100);
+	
+	private int valueInCent;
+	Coin(int valueInCent) { this.valueInCent = valueInCent; }
+	int value() { return valueInCent; }
+}
+```
+
+If you map an attribute of this type to the database, PriDE expects an SQL row of type VARCHAR or a similar type to store values like 'FIVE_CENT' etc. If you want to represent the coins by their value in the database, you provide a type-converting getter-setter-pair for the corresponding attribute in the entity class:
+
+```
+class MyEntity {
+    private Coin myAttr;
+    
+    public int _getMyAttr() {
+    	return myAttr.value();
+    }
+    
+    public void _setMyAttr(int v) {
+		for (Coin coin: Coin.values()) {
+			if (coin.value() == v) {
+				myAttr = coin;
+				return;
+			}
+		}
+		throw new IllegalArgumentException();
+    }
+}
+```
+
+Now you can use this getter setter pair to map the myAttr attribute to a DECIMAL table row, holding the coins' values:
+
+```
+.row("MYATTR", "_getMyAttr", "_setMyCoin")
+```
 
 # Find and Query
 
