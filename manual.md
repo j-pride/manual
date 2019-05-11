@@ -1,5 +1,5 @@
 % PriDE 3 User Manual
-% Last update: 06.03.2019
+% Last update: 27.03.2019
 % For version 3.4
 
 # About PriDE
@@ -967,7 +967,7 @@ COL_ID, lowest, highest, COL_NAME, COL_FIRST_NAME);
 
 ## Elaborated SQL with SQLExpressionBuilder
 
-PriDE's expression builder extends String.format() in a way, the you can use identifiers rather than just % and position numbers as variables. The builder is address by the static function `build(String formatString, Object... args)` in class pm.pride.SQL. Identifiers in the format string that require replacement by any of the following arguments begin with an @ character and end with the first character that is neither a letter nor an underscore. Based on that, the SQL can be represented almost natively:
+PriDE's expression builder extends String.format() in a way, that you can use identifiers rather than just % and position numbers as variables. The builder is addressed by the static function `build(String formatString, Object... args)` in class pm.pride.SQL. Identifiers in the format string that require replacement by any of the following arguments begin with an @ character and end with the first character that is neither a letter nor an underscore. Based on that, the SQL can be represented almost natively:
 
 ```
 SQL.build(
