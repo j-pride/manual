@@ -1,5 +1,5 @@
 % PriDE 3 User Manual
-% Last update: 27.03.2019
+% Last update: 12.11.2020
 % For version 3.4
 
 # About PriDE
@@ -574,7 +574,7 @@ It doesn't make a difference if you start with the or() method or the and() meth
 .and(COL_FIRST_NAME, IN, "Paddy", "Mary");
 ```
 
-The variants `xxxNotNull(...)` will only add the sub-condition if the (first) field value differs from Null. This is of interest for the assembly of conditions from interactive search criteria input. An empty criterion usually means 'do not consider' rather than 'must be empty'.
+The variants `xxxNN(...)` will only add the sub-condition if the (first) field value differs from Null. This is of interest for the assembly of conditions from interactive search criteria input. An empty criterion usually means 'do not consider' rather than 'must be empty'.
 
 The variant without parameters opens up a sub-condition which must be completed by function bracketClose(). The following condition looks for early customers (id less than 1000) that registered with a suspicious name "Mickey Mouse":
 
@@ -981,10 +981,10 @@ COL_ID, lowest, highest, COL_NAME, COL_FIRST_NAME);
 
 As you can see, the identifier feature can be combined with Java's standard replacement feature addressed by % characters. Arguments are assigned to identifiers in order of occurrence in the format string. Repeated occurrences of an identifier are replaced by the argument which was assigned to the identifier on its first occurrence.
 
-By default, the identifiers and the assigned argument values don't have to be identical, so the identifiers may be abbreviations or - vice versa - more descriptive forms of the actual table or column names passed as arguments. The possible risk is a hidden miss-assignment which still leads to syntactically valid SQL but to a wrong business logic. Referring to the example, swap the constants COL_NAME and COL_FIRST_NAME in the argument list and it results only in a minimal subtle miss behavior. If you don't have fine-grained test suite to reveal such a bug, you may use the expression builder in a more restrictive way. If you call SQL.buildx() instead of SQL.build() the builder will throw an InvalidArgumentException if the variable identifiers don't match the values of the assigned arguments based on a case-insensitive string comparison. E.g. the following SQL assembly would fail as the argument value "name" would be assigned to the variable identifier "first_name":
+By default, the identifiers and the assigned argument values don't have to be identical, so the identifiers may be abbreviations or - vice versa - more descriptive forms of the actual table or column names passed as arguments. The possible risk is a hidden miss-assignment which still leads to syntactically valid SQL but to a wrong business logic. Referring to the example, swap the constants COL_NAME and COL_FIRST_NAME in the argument list and it results only in a minimal subtle miss behavior. If you don't have fine-grained test suite to reveal such a bug, you may use the expression builder in a more restrictive way. If you call SQL.buildX() instead of SQL.build() the builder will throw an InvalidArgumentException if the variable identifiers don't match the values of the assigned arguments based on a case-insensitive string comparison. E.g. the following SQL assembly would fail as the argument value "name" would be assigned to the variable identifier "first_name":
 
 ```
-SQL.buildx("@first_name is null", "name")
+SQL.buildX("@first_name is null", "name")
 ```
 
 This variant implies that you use the % notation where name conformity doesn't make sense, e.g. for a column *value* instead of a column *name* like the ID range boundary values in the examples above. Additional validation options are available when you use the class SQLExpressionBuilder and its constructors directly. They allow to specify if the identifier comparison should be performed case sensitive or case insensitive and if the builder should actually throw an exception in case of miss-matches or just print out a warning on Stderr. Furthermore you may change the validation behavior of SQL.build() by setting SQLExpressionBuilder's static member `validationDefault`.
