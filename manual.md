@@ -1,5 +1,5 @@
 % PriDE 3 User Manual
-% Last update: 12.11.2020
+% Last update: 29.12.2025
 % For version 3.4
 
 # About PriDE
@@ -348,25 +348,27 @@ The RecordDescriptor class has a few more constructors concerned with joins and 
 
 The following table illustrates the mapping of Java object attribute types to SQL database field types as they are supported by PriDE. The row *'JDBC type'* determines the type being used for the specified attribute type to access results from a JDBC ResultSet or to pass inputs to a JDBC PreparedStatement. The *'SQL type'* specifies the actual SQL row types, the attributes can usually be mapped to. Not all SQL databases support all the mentioned type identifiers and it may also depend on the JDBC driver's capabilities which mappings are supported. Primitive attribute types should of course only be used, if the corresponding row must not be NULL. Otherwise an exception will be thrown at runtime when attempting to process NULL values.
 
-| **Java attribute type** | **JDBC type** | **SQL type**                       |
-| ----------------------- | ---------------------- | ---------------------------------- |
-| String                  | String                 | VARCHAR, VARCHAR2, NVARCHAR2, CHAR |
-|java.util.Date|java.sql.Date|DATE, DATETIME, TIMESTAMP, TIME|
-|java.sql.Date|java.sql.Date|DATE, DATETIME, TIMESTAMP, TIME|
-|java.sql.Timestamp|java.sql.Timestamp|DATETIME, TIMESTAMP, TIME|
-|int / Integer|Integer|INTEGER|
-|float / Float|Float|DECIMAL, REAL|
-|double / Double|Double|DECIMAL, REAL|
-|Any enum|String|VARCHAR, VARCHAR2, NVARCHAR2, CHAR|
-|boolean / Boolean|Boolean|BOOLEAN, INTEGER, SMALLINT, TINYINT, CHAR|
-|BigDecimal|BigDecimal|DECIMAL, NUMBER|
-|long / Long|Long|INTEGER, DECIMAL, NUMBER, BIGINT|
-|short / Short|Short|INTEGER, SMALLINT, TINYINT, DECIMAL|
-|byte / Byte|Byte|TINYINT|
-|byte[]|byte[]|BLOB, LONGVARBINARY, VARBINARY|
-|java.sql.Blob|java.sql.Blob|BLOB, LONGVARBINARY, VARBINARY|
-|java.sql.Clob|java.sql.Clob|CLOB, LONGVARCHAR|
-|java.sql.SQLXML / String|java.sql.SQLXML|java.sql.SQLXML|
+| **Java attribute type**  | **JDBC type**      | **SQL type**                       |
+|--------------------------|--------------------| ---------------------------------- |
+| String                   | String             | VARCHAR, VARCHAR2, NVARCHAR2, CHAR |
+| java.util.Date           | java.sql.Date      |DATE, DATETIME, TIMESTAMP, TIME|
+| java.sql.Date            | java.sql.Date      |DATE, DATETIME, TIMESTAMP, TIME|
+| java.sql.Timestamp       | java.sql.Timestamp |DATETIME, TIMESTAMP, TIME|
+| java.time.LocalDate      | java.sql.Date      |DATE, DATETIME, TIMESTAMP, TIME|
+| java.time.LocalDateTime  | java.sql.Timestamp |DATE, DATETIME, TIMESTAMP, TIME|
+| int / Integer            | Integer            |INTEGER|
+| float / Float            | Float              |DECIMAL, REAL|
+| double / Double          | Double             |DECIMAL, REAL|
+| Any enum                 | String             |VARCHAR, VARCHAR2, NVARCHAR2, CHAR|
+| boolean / Boolean        | Boolean            |BOOLEAN, INTEGER, SMALLINT, TINYINT, CHAR|
+| BigDecimal               | BigDecimal         |DECIMAL, NUMBER|
+| long / Long              | Long               |INTEGER, DECIMAL, NUMBER, BIGINT|
+| short / Short            | Short              |INTEGER, SMALLINT, TINYINT, DECIMAL|
+| byte / Byte              | Byte               |TINYINT|
+| byte[]                   | byte[]             |BLOB, LONGVARBINARY, VARBINARY|
+| java.sql.Blob            | java.sql.Blob      |BLOB, LONGVARBINARY, VARBINARY|
+| java.sql.Clob            | java.sql.Clob      |CLOB, LONGVARCHAR|
+| java.sql.SQLXML / String | java.sql.SQLXML    |java.sql.SQLXML|
 
 Clobs and Blobs can only be used through PreparedStatements, i.e. you either have to access the entities with Clob / Blob attributes with PriDE's [prepared operations](#prepared-operations) or you configure PriDE to use bind variables by default (see [quick start tutorial](#quick-start-tutorial)).
 
@@ -549,22 +551,22 @@ Query-by-example is easy to use but limited to equality expressions. A more soph
 
 ```
 WhereCondition byFirstNameAndEmptyName =
-	new WhereCondition(Customer.COL_FIRST_NAME, "Paddy")
-	.and(Customer.COL_NAME, null);
+  new WhereCondition(Customer.COL_FIRST_NAME, "Paddy")
+    .and(Customer.COL_NAME, null);
 ResultIterator ri = new Customer().query(byFirstNameAndEmptyName);
 ```
 
 The basic principle of the class is straight-forward:
 
-- The function and() creates a sub-condition which is is AND concatenated with the condition being assembled so far. The same applies to the corresponding or() method.
+- The function and() creates a sub-condition which is AND concatenated with the condition being assembled so far. The same applies to the corresponding or() method.
 - The and() function returns the WhereCondition itself which causes the class and its methods to become a fluent API.
 - The and() function which only gets passed a field name/value pair produces an equality expression.
 - The name/value pair passed to the constructor makes up the initial condition. To keep from mixing real constructor parameters with the first condition fragment, it is recommended to use the following form instead:
 
 ```
 WhereCondition byFirstNameAndEmptyName = new WhereCondition()
-	.and(Customer.COL_FIRST_NAME, "Paddy")
-	.and(Customer.COL_NAME, null);
+  .and(Customer.COL_FIRST_NAME, "Paddy")
+  .and(Customer.COL_NAME, null);
 ResultIterator ri = new Customer().query(byFirstNameAndEmptyName);
 ```
 
@@ -580,12 +582,21 @@ The variant without parameters opens up a sub-condition which must be completed 
 
 ```
 WhereCondition byMickeyMouse = new WhereCondition()
-	.and(COL_ID, LESS, 1000)
-	.and()
-		.or(COL_FIRST_NAME, IN, "Mickey", "Mouse")
-		.or(COL_NAME, IN, "Mickey", "Mouse")
-	.bracketClose();
+  .and(COL_ID, LESS, 1000)
+  .and()
+    .or(COL_FIRST_NAME, IN, "Mickey", "Mouse")
+    .or(COL_NAME, IN, "Mickey", "Mouse")
+  .bracketClose();
 ```
+
+You may also apply SQL functions to both fields and values. E.g. if the Mickey Mouse query should run case-insensitive you may use the LOWER SQL function like that:
+
+```
+WhereCondition byMickeyMouse = new WhereCondition()
+  .or(lower(COL_FIRST_NAME), IN, "mickey", "mouse");
+```
+
+The method `lower` is a static constructor method in class `WhereFunction`, which provides convenience methods for the most commonly known SQL functions. The contructor method `WhereFunction#function` allows to apply any available, possibly vendor-specific function.
 
 What of you are interested in other suspicious cases where name and first name are equal. In this case, the value is a field name itself and you have to bypass the value formatting. This is achieved by passing pre-formatted SQL values like that:
 
